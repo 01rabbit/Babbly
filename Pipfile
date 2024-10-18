@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+vosk = "*"
+numpy = "*"
+soundcard = "*"
+sounddevice = "*"
+speechrecognition = "*"
+pyaudio = "*"
+gtts = "*"
+pyttsx3 = "*"
+readchar = "*"
+janome = "*"
+netifaces = "*"
+
+[dev-packages]
+
+[requires]
