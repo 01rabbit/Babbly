@@ -1,0 +1,23 @@
+# ターゲットホストへのICMPパケットを送信して接続確認
+ping -c 4 {target}
+
+# ネットワーク内でのターゲットホストのMACアドレスを取得
+arp -a {target}
+
+# ターゲットホスト上で開いているTCP/UDPポートのスキャン
+nmap -sS -sU -p- {target}
+
+# ターゲットホストのOS情報の取得（NmapのOS検出機能を利用）
+nmap -O {target}
+
+# ターゲットホストのサービスタイプとバージョン情報の取得
+nmap -sV {target}
+
+# ターゲットのウェブサーバーに対して、HTTPレスポンスヘッダーを取得
+curl -I http://{target}
+
+# ドメイン名からターゲットの詳細なDNS情報を取得
+dig {target}
+
+# Whoisを使ってターゲットの登録情報を取得
+whois {target}

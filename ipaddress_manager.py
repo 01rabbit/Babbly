@@ -1,11 +1,11 @@
-import csv
+import json
 
 class IPAddressManager:
     """
     IPアドレス管理クラス
     
     ターゲットの名前、キー、IPアドレスを管理し、
-    CSVファイルからの読み込み、保存、IPアドレスの変更、
+    JSONファイルからの読み込み、保存、IPアドレスの変更、
     特定のターゲットのIPアドレス取得機能を提供します。
     """
 
@@ -13,32 +13,28 @@ class IPAddressManager:
         """
         IPAddressManagerのコンストラクタ
         
-        :param filename: ターゲット情報を含むCSVファイルの名前
+        :param filename: ターゲット情報を含むJSONファイルの名前
         """
         self.filename = filename
         self.targets = self.load_targets()
 
     def load_targets(self):
         """
-        CSVファイルからターゲット情報を読み込む
+        JSONファイルからターゲット情報を読み込む
         
         :return: ターゲット情報を含む辞書
         """
-        targets = {}
         with open(self.filename, 'r', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            for row in reader:
-                targets[row[1]] = {'name': row[0], 'ip': row[2]}
-        return targets
+            data = json.load(file)
+            return {item['ID']: {'name': item['VoiceAlias'], 'ip': item['IP']} for item in data}
 
     def save_targets(self):
         """
-        ターゲット情報をCSVファイルに保存する
+        ターゲット情報をJSONファイルに保存する
         """
-        with open(self.filename, 'w', encoding='utf-8', newline='') as file:
-            writer = csv.writer(file)
-            for key, value in self.targets.items():
-                writer.writerow([value['name'], key, value['ip']])
+        data = [{'VoiceAlias': value['name'], 'ID': key, 'IP': value['ip']} for key, value in self.targets.items()]
+        with open(self.filename, 'w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
 
     def change_ip_address(self):
         """
@@ -72,10 +68,7 @@ class IPAddressManager:
         
         :return: すべてのターゲット情報を含む文字列のリスト
         """
-        result = []
-        for value in self.targets.values():
-            result.append(f"{value['name']}: {value['ip']}")
-        return result
+        return [f"{value['name']}: {value['ip']}" for value in self.targets.values()]
 
     def register_ip_addresses(self, ip_addresses, overwrite=False):
         """
@@ -95,10 +88,51 @@ class IPAddressManager:
 
         self.save_targets()  # 変更を保存
 
+    def clear_all_ip_addresses(self):
+        """
+        全てのターゲットのIPアドレスを消去するメソッド
+        """
+        for target in self.targets.values():
+            target['ip'] = ""
+        self.save_targets()
+        print("全てのIPアドレスを消去しました。")
+
+    def clear_specific_ip_address(self, target_identifier):
+        """
+        指定したターゲットのIPアドレスを消去するメソッド
+
+        :param target_identifier: 消去するターゲットのID (a-z) または名前
+        :return: 成功時はTrue、ターゲットが見つからない場合はFalse
+        """
+        target_key = None
+        target_name = None
+
+        # IDで検索
+        if target_identifier in self.targets:
+            target_key = target_identifier
+            target_name = self.targets[target_key]['name']
+        else:
+            # 名前で検索
+            for key, value in self.targets.items():
+                if value['name'] == target_identifier:
+                    target_key = key
+                    target_name = target_identifier
+                    break
+
+        if target_key is not None:
+            self.targets[target_key]['ip'] = ""
+            self.save_targets()
+            print(f"{target_name}のIPアドレスを消去しました。")
+            return True
+        else:
+            print("指定されたターゲットが見つかりません。")
+            return False
+
+
 # 使用例
 if __name__ == "__main__":
     # IPAddressManagerのインスタンスを作成
-    manager = IPAddressManager("target.csv")
+    manager = IPAddressManager("targets.json")
 
     # すべてのターゲットを表示
     all_targets = manager.display_all_targets()
@@ -140,4 +174,22 @@ if __name__ == "__main__":
     # print("\n更新後のターゲット情報:")
     # for target in manager.display_all_targets():
     #     print(target)
-    
+
+    # 現在のターゲット情報を表示
+    # print("消去前のターゲット情報:")
+    # for target in manager.display_all_targets():
+    #     print(target)
+
+    # IDを使用してターゲットのIPアドレスを消去
+    # manager.clear_specific_ip_address("a")
+
+    # 名前を使用してターゲットのIPアドレスを消去
+    # manager.clear_specific_ip_address("ターゲットブラボー")
+
+    # 更新後のターゲット情報を表示
+    # print("\n消去後のターゲット情報:")
+    # for target in manager.display_all_targets():
+    #     print(target)
+
+    # 存在しないターゲットを指定した場合
+    # manager.clear_specific_ip_address("存在しないターゲット")
