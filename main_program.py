@@ -99,9 +99,9 @@ def listen_for_command(vosk_asr):
     ip_manager = IPAddressManager("targets.json")
     target_dict = ip_manager.load_targets()
     # OperationManager クラスのインスタンスを作成
-    manager = OperationManager('sop.json')
+    op_manager = OperationManager('sop.json')
     # sop.jsonからオペレーション名のリストを取得
-    valid_operations = set(manager.get_operation_names())
+    valid_operations = set(op_manager.get_operation_names())
 
 
     print("コマンドを入力してください（終了するには 'exit' を言ってください）")
@@ -116,12 +116,16 @@ def listen_for_command(vosk_asr):
         recog_text = get_asr_result(vosk_asr)
         if recog_text:
             print(f"認識テキスト: {recog_text}")
-            userOrder=[]
+            # userOrder=[]　# 空リストの初期は不要
             userOrder = analyze_text(recog_text)
+            #------test--------
+            target_name, target_ip = find_target_ip(userOrder, target_dict)
+
             if EXIT_PHRASE in userOrder:
                 print("終了フレーズ認識！処理を終了します。")
                 speak_text_aloud("終了フレーズ認識！終了します。")
                 sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
+
             elif "自己紹介" in userOrder:
                 print("自己紹介をします")
                 message = f"私は{WAKEUP_PHRASE}。ミスターラビットによって開発された人工無能です"
@@ -131,27 +135,23 @@ def listen_for_command(vosk_asr):
                 print("再度ウェイクアップフレーズを待機します。")
                 break  # ウェイクアップフレーズの待機に戻る
             
-            # オペレーション名のチェック
+            # オペレーション名のチェックと実行処理
             elif any(operation in userOrder for operation in valid_operations):
-                # userOrder に一致するオペレーション名が含まれている場合
-                for operation in valid_operations:
-                    if operation in userOrder:
-                        if "説明" in userOrder:
-                            print(manager.get_operation_info(operation))
-                            break
-                        else:
-                            print(f"オペレーション '{operation}' が認識されました。実行します。")
-                            break
-                        # オペレーションを実行する処理を追加
-                break  # 最初に一致したオペレーション名を見つけたらループを抜ける
+                # userOrder と valid_operations を直接比較して最適化
+                matching_operations = [op for op in userOrder if op in valid_operations]
+                if matching_operations:
+                    # 一致するオペレーションがある場合、最初のものを処理
+                    operation = matching_operations[0]
+                    if "説明" in userOrder:
+                        print(op_manager.get_operation_info(operation))
+                    else:
+                        print(f"オペレーション '{operation}' が認識されました。実行します。")
+                        # ここにオペレーション実行のコードを追加
+                    break  # 最初に一致したオペレーションを処理した後ループを抜ける
     
             else:
                 print(f"コマンド実行: {recog_text}")
                 matching_items = set(userOrder) & set(command_map)
-
-                #------test--------
-                target_name, target_ip = find_target_ip(userOrder, target_dict)
-
 
                 if matching_items:
                     for matched_key in matching_items:
