@@ -1,6 +1,6 @@
 # Babbly
 
-Bots driven by Artificial Incompetence bypass barriers, leaving users yearning for stronger security.
+**Beautiful** in flaws, **Artificial incompetence** remains our **Buddy**, **Bypassing** threats while **Leaving** us **Yearning** for growth.
 
 ![Babbly logo](images/Babbly_logo.JPG)
 
