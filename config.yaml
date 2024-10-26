@@ -1,0 +1,8 @@
+msf_host: "localhost"
+msf_port: 55553
+msf_password: "your_secure_password"
+lhost: "192.168.1.10"
+lport: 4444
+default_timeout: 30
+session_timeout: 3600
+max_retries: 3​​​​​​​​​​​​​​​​
