@@ -2,20 +2,30 @@
 import sys
 import os
 import subprocess
-import time
+import yaml
 import threading
 from janome.analyzer import Analyzer
 from janome.tokenfilter import CompoundNounFilter
-from vosk_asr_module import initialize_vosk_asr, get_asr_result
-from speech import speak_text_aloud
-from ipaddress_manager import IPAddressManager
-from operation_manager import OperationManager
+from babbly.JP.vosk_asr_module import initialize_vosk_asr, get_asr_result
+from babbly.JP.speech import speak_text_aloud
+from babbly.JP.ipaddress_manager import IPAddressManager
+from babbly.JP.operation_manager import OperationManager
+from dotenv import load_dotenv
+
+load_dotenv(".env")
+
+# 環境変数からパスを取得
+WAKEUP_PHRASE = os.getenv('WAKEUP_PHRASE')      # ウェイクアップフレーズ
+EXIT_PHRASE = os.getenv('EXIT_PHRASE')          # 終了フレーズ
+COMMANDS_PATH = os.getenv('COMMANDS_PATH')
+TARGETS_PATH = os.getenv('TARGETS_PATH')
+SOP_PATH = os.getenv('SOP_PATH')
 
 
-
-WAKEUP_PHRASE = "プログラム"  # ウェイクアップフレーズ
-EXIT_PHRASE = "終了"          # 終了フレーズ
-COMMANDS_PATH = 'commands.txt'
+def load_config(file_path):
+        """設定ファイルを読み込む"""
+        with open(file_path, 'r') as file:
+            return yaml.safe_load(file)
 
 def analyze_text(message):
     """受け取った文字列を形態素解析する
@@ -96,10 +106,10 @@ def listen_for_command(vosk_asr):
     last_modified = os.path.getmtime(COMMANDS_PATH)
 
     #-----test--------
-    ip_manager = IPAddressManager("targets.json")
+    ip_manager = IPAddressManager(TARGETS_PATH)
     target_dict = ip_manager.load_targets()
     # OperationManager クラスのインスタンスを作成
-    op_manager = OperationManager('sop.json')
+    op_manager = OperationManager(SOP_PATH)
     # sop.jsonからオペレーション名のリストを取得
     valid_operations = set(op_manager.get_operation_names())
 
@@ -190,9 +200,13 @@ def perform_action(command, target_ip=None):
         print(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
         speak_text_aloud("コマンドの実行に失敗しました")
 
-# 音声認識を初期化
-vosk_asr = initialize_vosk_asr()
+def main():
+    # 音声認識を初期化
+    vosk_asr = initialize_vosk_asr()
 
-print("＜音声認識開始 - 入力を待機します＞")
-while True:
-    listen_for_wakeup_phrase(vosk_asr)
+    print("＜音声認識開始 - 入力を待機します＞")
+    while True:
+        listen_for_wakeup_phrase(vosk_asr)
+
+if __name__ == '__main__':
+    main()

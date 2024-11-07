@@ -1,3 +1,5 @@
+
+# Metasploit
 msf_host: "127.0.0.1"
 msf_port: 55553
 msf_password: "msfadmin"

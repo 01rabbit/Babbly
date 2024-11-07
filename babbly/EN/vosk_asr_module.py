@@ -24,9 +24,15 @@ SOFTWARE.
 import json
 import queue
 import sys
+import os
 from collections import namedtuple
 import sounddevice as sd
 from vosk import KaldiRecognizer, Model, SetLogLevel
+from dotenv import load_dotenv
+
+load_dotenv()
+# MODEL_PATH = os.getenv("MODEL_PATH")
+MODEL_PATH = "babbly/EN/model"
 
 class MicrophoneStream:
     """マイク音声入力のためのクラス."""
@@ -80,7 +86,7 @@ def get_asr_result(vosk_asr):
                 return recog_text
         return None
 
-def initialize_vosk_asr(model_path="model", chunk_size=8000):
+def initialize_vosk_asr(model_path=MODEL_PATH, chunk_size=8000):
     """Voskの音声認識モジュールを初期化する."""
     SetLogLevel(-1)
     input_device_info = sd.query_devices(kind="input")
@@ -91,3 +97,22 @@ def initialize_vosk_asr(model_path="model", chunk_size=8000):
 
     VoskStreamingASR = namedtuple("VoskStreamingASR", ["microphone_stream", "recognizer"])
     return VoskStreamingASR(mic_stream, recognizer)
+
+
+
+def listen_for_wakeup_phrase(vosk_asr):
+    """ウェイクアップフレーズが認識されるまで待機する.
+
+    :param:vosk_asr (VoskStreamingASR): 音声認識モジュール
+    """
+    while True:
+        recog_text = get_asr_result(vosk_asr)
+        if recog_text:
+            print(f"認識テキスト: {recog_text}")
+
+# 音声認識を初期化
+vosk_asr = initialize_vosk_asr()
+
+print("＜音声認識開始 - 入力を待機します＞")
+while True:
+    listen_for_wakeup_phrase(vosk_asr)
