@@ -1,44 +1,39 @@
 #!/usr/bin/python3
 import os
 from configparser import ConfigParser
+from typing import Dict
 
-def read_config(filename, section):
+def read_config(filename: str, section: str) -> Dict[str, str]:
     """
-    指定された設定ファイルから指定されたセクションの設定を読み取るメソッド。
-    Parameters:
-        filename (str): 設定ファイルのパス
-        section (str): 読み取るセクションの名前
-    Returns:
-        dict: セクション内の設定項目と値を含むディクショナリ
+    指定された設定ファイルから指定されたセクションの設定を読み取ります。
     """
     parser = ConfigParser()
-    filepath = os.path.join(os.path.dirname(__file__), filename)
-    parser.read(filepath, encoding='utf-8')
+    parser.read(filename, encoding='utf-8')
     
     if not parser.has_section(section):
-        raise Exception(f'Section {section} not found in the {filename} file')
+        raise ValueError(f'Section "{section}" not found in the {filename} file')
     
     return dict(parser.items(section))
 
-def get_service_config(service_name):
+def get_service_config(service_name: str) -> Dict[str, str]:
     """
-    サービス名に基づいて設定を読み取る共通関数
-    Parameters:
-        service_name (str): サービスの名前
-    Returns:
-        dict: サービスの設定
+    指定されたサービスの設定を取得します。
     """
-    return read_config('service.ini', service_name)
+    config_file = os.getenv("CONFIG_FILE", "service.ini")
+    return read_config(config_file, service_name)
 
-# 各サービスの設定を取得する関数
-matter_conf = lambda: get_service_config('mattermost')
-faraday_conf = lambda: get_service_config('faraday')
-gvm_conf = lambda: get_service_config('gvm')
-brutespray_conf = lambda: get_service_config('brutespray')
+def test_service_config(service_name: str):
+    """
+    サービス設定を表示します。
+    """
+    try:
+        config = get_service_config(service_name)
+        print(f"\n=== {service_name} Configuration ===")
+        for key, value in config.items():
+            print(f"{key}: {value}")
+    except Exception as e:
+        print(f"Error loading {service_name} configuration: {e}")
 
 if __name__ == '__main__':
-    # テスト用のコード
-    try:
-        print("Mattermost config:", matter_conf())
-    except Exception as e:
-        print(f"Error: {e}")
+    # 検証用のmattermost設定のテスト
+    test_service_config('mattermost')
