@@ -1,3 +1,5 @@
+model/
+vosk-model-en-us-0.22/
 __pycache__/
 speech.txt
 speech.wav

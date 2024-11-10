@@ -141,7 +141,7 @@ if __name__ == "__main__":
         print(target)
 
     # IPアドレスの変更
-    # manager.change_ip_address()
+    manager.change_ip_address()
 
     # 文字列入力によるIPアドレスの表示
     input_text = "ターゲットチャーリーのアドレスを教えて"
@@ -158,38 +158,38 @@ if __name__ == "__main__":
     ]
 
     # 追加モードで登録（空のIPアドレスのみ更新）
-    # print("追加モードで登録:")
-    # manager.register_ip_addresses(discovered_ip_addresses, overwrite=False)
+    print("追加モードで登録:")
+    manager.register_ip_addresses(discovered_ip_addresses, overwrite=False)
 
     # 現在のターゲット情報を表示
-    # print("\n現在のターゲット情報:")
-    # for target in manager.display_all_targets():
-    #     print(target)
+    print("\n現在のターゲット情報:")
+    for target in manager.display_all_targets():
+        print(target)
 
     # 上書きモードで登録（既存のIPアドレスも上書き）
-    # print("\n上書きモードで登録:")
-    # manager.register_ip_addresses(discovered_ip_addresses, overwrite=True)
+    print("\n上書きモードで登録:")
+    manager.register_ip_addresses(discovered_ip_addresses, overwrite=True)
 
     # 更新後のターゲット情報を表示
-    # print("\n更新後のターゲット情報:")
-    # for target in manager.display_all_targets():
-    #     print(target)
+    print("\n更新後のターゲット情報:")
+    for target in manager.display_all_targets():
+        print(target)
 
     # 現在のターゲット情報を表示
-    # print("消去前のターゲット情報:")
-    # for target in manager.display_all_targets():
-    #     print(target)
+    print("消去前のターゲット情報:")
+    for target in manager.display_all_targets():
+        print(target)
 
     # IDを使用してターゲットのIPアドレスを消去
-    # manager.clear_specific_ip_address("a")
+    manager.clear_specific_ip_address("a")
 
     # 名前を使用してターゲットのIPアドレスを消去
-    # manager.clear_specific_ip_address("ターゲットブラボー")
+    manager.clear_specific_ip_address("ターゲットブラボー")
 
     # 更新後のターゲット情報を表示
-    # print("\n消去後のターゲット情報:")
-    # for target in manager.display_all_targets():
-    #     print(target)
+    print("\n消去後のターゲット情報:")
+    for target in manager.display_all_targets():
+        print(target)
 
     # 存在しないターゲットを指定した場合
-    # manager.clear_specific_ip_address("存在しないターゲット")
+    manager.clear_specific_ip_address("存在しないターゲット")

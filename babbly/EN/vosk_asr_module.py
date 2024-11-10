@@ -24,12 +24,18 @@ SOFTWARE.
 import json
 import queue
 import sys
+import os
 from collections import namedtuple
 import sounddevice as sd
 from vosk import KaldiRecognizer, Model, SetLogLevel
+from dotenv import load_dotenv
+
+load_dotenv()
+# MODEL_PATH = os.getenv("MODEL_PATH")
+MODEL_PATH = "babbly/EN/model"
 
 class MicrophoneStream:
-    """マイク音声入力のためのクラス."""
+    """Class for microphone audio input."""
     def __init__(self, rate, chunk):
         self.rate = rate
         self.chunk = chunk
@@ -67,7 +73,7 @@ class MicrophoneStream:
             yield b"".join(data)
 
 def get_asr_result(vosk_asr):
-    """音声認識APIを実行して最終的な認識結果を得る."""
+    """Execute the speech recognition API to obtain the final recognition result."""
     mic_stream = vosk_asr.microphone_stream
     mic_stream.open_stream()
     with mic_stream.input_stream:
@@ -76,12 +82,12 @@ def get_asr_result(vosk_asr):
             if vosk_asr.recognizer.AcceptWaveform(content):
                 recog_result = json.loads(vosk_asr.recognizer.Result())
                 recog_text = recog_result["text"].split()
-                recog_text = "".join(recog_text)  # 空白記号を除去
+                # recog_text = "".join(recog_text)  # 空白記号を除去
                 return recog_text
         return None
 
-def initialize_vosk_asr(model_path="model", chunk_size=8000):
-    """Voskの音声認識モジュールを初期化する."""
+def initialize_vosk_asr(model_path=MODEL_PATH, chunk_size=8000):
+    """Initialize Vosk's speech recognition module."""
     SetLogLevel(-1)
     input_device_info = sd.query_devices(kind="input")
     sample_rate = int(input_device_info["default_samplerate"])
@@ -91,3 +97,4 @@ def initialize_vosk_asr(model_path="model", chunk_size=8000):
 
     VoskStreamingASR = namedtuple("VoskStreamingASR", ["microphone_stream", "recognizer"])
     return VoskStreamingASR(mic_stream, recognizer)
+

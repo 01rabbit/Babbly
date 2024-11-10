@@ -1,0 +1,67 @@
+[
+    {
+        "VoiceAlias": "target alpha",
+        "ID": "a",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target bravo",
+        "ID": "b",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target charlie",
+        "ID": "c",
+        "IP": "192.168.1.100"
+    },
+    {
+        "VoiceAlias": "target delta",
+        "ID": "d",
+        "IP": "192.168.1.101"
+    },
+    {
+        "VoiceAlias": "target echo",
+        "ID": "e",
+        "IP": "192.168.1.102"
+    },
+    {
+        "VoiceAlias": "target foxtrot",
+        "ID": "f",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target golf",
+        "ID": "g",
+        "IP": "192.168.1.103"
+    },
+    {
+        "VoiceAlias": "target hotel",
+        "ID": "h",
+        "IP": "192.168.1.104"
+    },
+    {
+        "VoiceAlias": "target india",
+        "ID": "i",
+        "IP": ""
+    },
+    {
+        "VoiceAlias": "target juliet",
+        "ID": "j",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target kilo",
+        "ID": "k",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target lima",
+        "ID": "l",
+        "IP": "127.0.0.1"
+    },
+    {
+        "VoiceAlias": "target mike",
+        "ID": "m",
+        "IP": "127.0.0.1"
+    }
+]

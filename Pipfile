@@ -17,6 +17,7 @@ janome = "*"
 netifaces = "*"
 pymetasploit3 = "*"
 pyyaml = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
