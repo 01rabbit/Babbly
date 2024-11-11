@@ -55,14 +55,19 @@ def find_target_ip(comparison_list, target_dict):
     """
     # target_dictから名前のリストを作成
     target_names = [value['name'] for value in target_dict.values()]
-    
-    # comparison_listの各要素をチェック
-    for item in comparison_list:
-        if item in target_names:
+
+    try:
+        target_num = comparison_list.index("target")
+        target_name = f"{comparison_list[target_num]} {comparison_list[target_num + 1]}"
+
+        # comparison_listの各要素をチェック
+        if target_name in target_names:
             # 一致する名前が見つかった場合、そのIPアドレスを返す
             for value in target_dict.values():
-                if value['name'] == item:
-                    return item, value['ip']
+                if value['name'] == target_name:
+                    return target_name, value['ip']
+    except (ValueError, IndexError):
+        pass  # Do nothing if an error occurs
     
     return None, None  # 一致するターゲットが見つからない場合
 
@@ -131,21 +136,23 @@ def listen_for_command(vosk_asr):
                 break  # ウェイクアップフレーズの待機に戻る
             
             # オペレーション名のチェックと実行処理
-            elif any(operation in userOrder for operation in valid_operations):
-                # userOrder と valid_operations を直接比較して最適化
-                matching_operations = [op for op in userOrder if op in valid_operations]
-                if matching_operations:
-                    # 一致するオペレーションがある場合、最初のものを処理
-                    operation = matching_operations[0]
-                    if "説明" in userOrder:
-                        print(op_manager.get_operation_info(operation))
-                    else:
-                        print(f"オペレーション '{operation}' が認識されました。実行します。")
-                        # ここにオペレーション実行のコードを追加
-                    break  # 最初に一致したオペレーションを処理した後ループを抜ける
-    
+            elif "operation" in userOrder:
+                try:
+                    operation_num = userOrder.index("operation")
+                    operation_name = f"{userOrder[operation_num]} {userOrder[operation_num + 1]}"
+                    
+                    if operation_name in op_manager.get_operation_names():
+                        if "describe" or "explain" in userOrder:
+                            print(op_manager.get_operation_info(operation_name))
+                        else:
+                            print(f"'{operation_name}' has been recognized. Execute.")
+                            # ここにオペレーション実行のコードを追加
+                        break  # 最初に一致したオペレーションを処理した後ループを抜ける
+                except (ValueError, IndexError):
+                    pass  # Do nothing if an error occurs
+
             else:
-                print(f"コマンド実行: {recog_text}")
+                print(f"command execution: {recog_text}")
                 matching_items = set(userOrder) & set(command_map)
 
                 if matching_items:
@@ -164,7 +171,7 @@ def listen_for_command(vosk_asr):
                             action_thread = threading.Thread(target=perform_action, args=(command,))
 
                         action_thread.start()
-                print("再度ウェイクアップフレーズを待機します。")
+                print("Wait for wake-up phrase again.")
                 break  # ウェイクアップフレーズの待機に戻る
 
 def perform_action(command, target_ip=None):

@@ -1,12 +1,12 @@
 [
     {
-        "VoiceAlias": "オペレーションアルファ",
-        "info": "このオペレーションはアルファ...説明",
+        "VoiceAlias": "operation alpha",
+        "info": "This operation is Alpha... description",
         "file": "opa.lst"
     },
     {
-        "VoiceAlias": "オペレーションブラボー",
-        "info": "このオペレーションはブラボー...説明",
+        "VoiceAlias": "operation bravo",
+        "info": "This operation is Bravo... description",
         "file": "opb.lst"
     }
 ]
