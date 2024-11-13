@@ -57,10 +57,14 @@ class IPAddressManager:
         :param input_text: ターゲット名を含む入力テキスト
         :return: ターゲット名とIPアドレスを含む文字列、またはエラーメッセージ
         """
+        if input_text is None:
+            return "エラー: 入力がありません。"
+
         for key, value in self.targets.items():
             if value['name'] in input_text:
                 return f"{value['name']}: {value['ip']}"
         return "指定されたターゲットが見つかりません。"
+
 
     def display_all_targets(self):
         """

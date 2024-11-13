@@ -28,10 +28,11 @@ import os
 from collections import namedtuple
 import sounddevice as sd
 from vosk import KaldiRecognizer, Model, SetLogLevel
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 
-load_dotenv()
-MODEL_PATH = os.getenv("MODEL_PATH")
+# load_dotenv()
+# MODEL_PATH = os.getenv("MODEL_PATH")
+MODEL_PATH = os.environ.get("MODEL_PATH")
 
 class MicrophoneStream:
     """マイク音声入力のためのクラス."""

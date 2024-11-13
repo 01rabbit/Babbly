@@ -51,34 +51,43 @@ Babbly eliminates the need for online connections or data dependence, providing 
 
 ## Setup
 
-1. Install to Espeak.
+1. Install to Espeak.  
 
    ``` bash
    sudo apt update
    sudo apt install espeak
    ```
 
-2. Download vosk model
+2. Download vosk model  
 
    | Model | Size | Word error rate/Speed | Notes | License |
    | ---- | ---- |---- | ---- |---- |
    | [vosk-model-small-en-us-0.15](https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip) | 40M | 9.85 (librispeech test-clean) 10.38 (tedlium) | Lightweight wideband model for Android and RPi| Apache 2.0 |
    | [vosk-model-en-us-0.22](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip) | 1.8G | 5.69 (librispeech test-clean) 6.05 (tedlium) 29.78(callcenter) | Accurate generic US English model| Apache 2.0 |
 
-3. Rename the downloaded Vosk model to `model` and place it in the `Babbly/babbly/EN/` directory.
+3. Rename the downloaded Vosk model to `model` and place it in the `Babbly/babbly/en/` directory.  
 
    ``` bash
-   mv vosk-model-small-en-us-0.15 /home/kali/Babbly/babbly/EN/model
+   mv vosk-model-small-en-us-0.15 /home/kali/Babbly/babbly/en/model
    ```
 
-4. Edit the environment variable file `.env` as follows.
+4. Open the configuration file (`babbly/en/config_en.yaml`) and edit **WAKEUP_PHRASE** and **EXIT_PHRASE**. Do not make any other changes.  
    *I recommend using a wake-up phrase that is easy to call and recognize (I wanted to use "Babbly," but it is not recognized well, so please choose a name you like).*
 
-   ``` .env
-   WAKEUP_PHRASE="friday"
-   EXIT_PHRASE="exit"
-   COMMANDS_PATH=babbly/EN/commands.txt
-   TARGETS_PATH=babbly/EN/targets.json
-   SOP_PATH=babbly/EN/sop.json
-   MODEL_PATH=babbly/EN/model
+   ``` yaml
+   WAKEUP_PHRASE: "friday"
+   EXIT_PHRASE: "exit"
+   COMMANDS_PATH: "babbly/en/commands.txt"
+   TARGETS_PATH: "babbly/en/targets.json"
+   SOP_PATH: "babbly/en/sop.json"
+   MODEL_PATH: "babbly/en/model"
    ```
+
+## How to use
+
+1. Run `babbly_en.py`.
+2. When the voice announces the start of the system, say the wake-up phrase.
+3. When the wake-up phrase is recognized, it will enter a command-waiting state, so please give a command. (e.g., "Scan the network.")
+4. For example, if you command a network scan, the program will accept the command, execute the Nmap command internally, and report the discovered hosts.
+5. After completing the network scan, the IP addresses of the discovered hosts are recorded as target information in `targets.json`.
+6. To end, please say the exit phrase while in the command-waiting state.

@@ -4,28 +4,29 @@ import os
 import subprocess
 import yaml
 import threading
+import logging
 from janome.analyzer import Analyzer
 from janome.tokenfilter import CompoundNounFilter
-from babbly.JP.vosk_asr_module import initialize_vosk_asr, get_asr_result
-from babbly.JP.speech import speak_text_aloud
+from babbly.ja.vosk_asr_module import initialize_vosk_asr, get_asr_result
+from babbly.ja.speech import speak_text_aloud
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
-from dotenv import load_dotenv
-
-load_dotenv(".env")
-
-# 環境変数からパスを取得
-WAKEUP_PHRASE = os.getenv('WAKEUP_PHRASE')      # ウェイクアップフレーズ
-EXIT_PHRASE = os.getenv('EXIT_PHRASE')          # 終了フレーズ
-COMMANDS_PATH = os.getenv('COMMANDS_PATH')
-TARGETS_PATH = os.getenv('TARGETS_PATH')
-SOP_PATH = os.getenv('SOP_PATH')
-
+from babbly.modules.network_scanner import NetworkScanner
 
 def load_config(file_path):
-        """設定ファイルを読み込む"""
-        with open(file_path, 'r') as file:
-            return yaml.safe_load(file)
+    with open(file_path, 'r', encoding='utf-8') as file:
+        config = yaml.safe_load(file)
+    return config
+
+# グローバル変数に代入する関数
+def set_globals(config):
+    global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH, MODEL_PATH
+    WAKEUP_PHRASE = config.get("WAKEUP_PHRASE")
+    EXIT_PHRASE = config.get("EXIT_PHRASE")
+    COMMANDS_PATH = config.get("COMMANDS_PATH")
+    TARGETS_PATH = config.get("TARGETS_PATH")
+    SOP_PATH = config.get("SOP_PATH")
+    MODEL_PATH = config.get("MODEL_PATH")
 
 def analyze_text(message):
     """受け取った文字列を形態素解析する
@@ -94,7 +95,7 @@ def listen_for_wakeup_phrase(vosk_asr):
             userOrder = analyze_text(recog_text)
             if WAKEUP_PHRASE in userOrder:
                 print("ウェイクアップフレーズ認識！次の入力を待機します。")
-                speak_text_aloud("起動コードを認識")
+                speak_text_aloud("はい、ボス")
                 listen_for_command(vosk_asr)  # ウェイクアップ後にコマンドを待機
 
 def listen_for_command(vosk_asr):
@@ -105,17 +106,15 @@ def listen_for_command(vosk_asr):
     command_map = load_commands(COMMANDS_PATH)
     last_modified = os.path.getmtime(COMMANDS_PATH)
 
-    #-----test--------
     ip_manager = IPAddressManager(TARGETS_PATH)
     target_dict = ip_manager.load_targets()
-    # OperationManager クラスのインスタンスを作成
+
     op_manager = OperationManager(SOP_PATH)
-    # sop.jsonからオペレーション名のリストを取得
     valid_operations = set(op_manager.get_operation_names())
 
 
-    print("コマンドを入力してください（終了するには 'exit' を言ってください）")
-    speak_text_aloud("何か指示をしてください")
+    print(f"コマンドを入力してください（終了するには {EXIT_PHRASE} を言ってください）")
+    speak_text_aloud("指示をどうぞ")
     while True:
         # ファイル変更の監視
         if os.path.getmtime(COMMANDS_PATH) != last_modified:
@@ -126,14 +125,13 @@ def listen_for_command(vosk_asr):
         recog_text = get_asr_result(vosk_asr)
         if recog_text:
             print(f"認識テキスト: {recog_text}")
-            # userOrder=[]　# 空リストの初期は不要
             userOrder = analyze_text(recog_text)
-            #------test--------
+
             target_name, target_ip = find_target_ip(userOrder, target_dict)
 
             if EXIT_PHRASE in userOrder:
                 print("終了フレーズ認識！処理を終了します。")
-                speak_text_aloud("終了フレーズ認識！終了します。")
+                speak_text_aloud("システムを終了します")
                 sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
             elif "自己紹介" in userOrder:
@@ -158,9 +156,31 @@ def listen_for_command(vosk_asr):
                         print(f"オペレーション '{operation}' が認識されました。実行します。")
                         # ここにオペレーション実行のコードを追加
                     break  # 最初に一致したオペレーションを処理した後ループを抜ける
-    
+
+            elif "ネットワーク" and "スキャン" in userOrder:
+                netscan = NetworkScanner()
+                local_ip, netmask = netscan.get_local_ip_and_netmask()
+                if not local_ip or not netmask:
+                    logging.error("Could not retrieve local IP or netmask.")
+                    return
+                network = netscan.get_network_address(local_ip, netmask)
+                speak_text_aloud("ネットワークをスキャンします")
+                discovered_hosts = netscan.discover_hosts(network)
+                for host, status in discovered_hosts:
+                    logging.info(f"Host: {host}, Status: {status}")
+                speak_text_aloud(f"{str(len(discovered_hosts))}個のホストを発見")
+                # discovered_hostsからIPアドレスを抽出
+                ip_addresses = [host[0] for host in discovered_hosts]
+                ip_manager.register_ip_addresses(ip_addresses, True)
+                break
+
+            elif "ターゲット" and "教える" in userOrder:
+                print(ip_manager.get_ip_address(target_name))
+                speak_text_aloud(ip_manager.get_ip_address(target_name))
+                break
+
             else:
-                print(f"コマンド実行: {recog_text}")
+                logging.info(f"コマンド実行: {recog_text}")
                 matching_items = set(userOrder) & set(command_map)
 
                 if matching_items:
@@ -193,17 +213,20 @@ def perform_action(command, target_ip=None):
         result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         
         # 実行結果を出力
-        print(f"コマンドの実行結果: {result.stdout}")
+        logging.info(f"コマンドの実行結果: {result.stdout}")
         speak_text_aloud("コマンドを実行しました")
     except subprocess.CalledProcessError as e:
         # エラー時の処理
-        print(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
+        logging.error(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
         speak_text_aloud("コマンドの実行に失敗しました")
 
 def main():
+    config = load_config("babbly/ja/config_ja.yaml")
+    set_globals(config)
     # 音声認識を初期化
-    vosk_asr = initialize_vosk_asr()
+    vosk_asr = initialize_vosk_asr(MODEL_PATH)
 
+    speak_text_aloud(f"人工無能システム、{WAKEUP_PHRASE}、起動")
     print("＜音声認識開始 - 入力を待機します＞")
     while True:
         listen_for_wakeup_phrase(vosk_asr)

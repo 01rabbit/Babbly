@@ -52,38 +52,47 @@ Babblyは、AIツールが求めるオンライン接続やデータ依存を排
 
 ## Setup
 
-1. 依存関係のインストール
+1. 依存関係のインストール  
    `open_jtalk`、`mecab`、`aplay`、および必要な辞書データや音声データをインストールします。  
 
     ``` bash
     sudo apt install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001 aplay
     ```
 
-2. ディレクトリの配置と確認
+2. ディレクトリの配置と確認  
    辞書ディレクトリ：`/var/lib/mecab/dic/open-jtalk/naist-jdic/`  
    音声ファイル：`/usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice`  
 
-3. voskモデルのダウンロード
+3. voskモデルのダウンロード  
 
    | Model | Size | Word error rate/Speed | Notes | License |
    | ---- | ---- |---- | ---- |---- |
    | [vosk-model-small-ja-0.22](https://alphacephei.com/vosk/models/vosk-model-small-ja-0.22.zip) | 48M | 9.52(csj CER) 17.07(ted10k CER) | Lightweight wideband model for Japanese | Apache 2.0 |
    | [vosk-model-ja-0.22](https://alphacephei.com/vosk/models/vosk-model-ja-0.22.zip) | 1Gb | 8.40(csj CER) 13.91(ted10k CER) | Big model for Japanese| Apache 2.0 |
 
-4. ダウンロードしたvoskモデルを`model`とリネームして`Babbly/babbly/JP/`直下に配置する。
+4. ダウンロードしたvoskモデルを`model`とリネームして`Babbly/babbly/ja/`直下に配置する。  
 
    ``` bash
-   mv vosk-model-ja-0.22 /home/kali/Babbly/babbly/JP/model
+   mv vosk-model-ja-0.22 /home/kali/Babbly/babbly/ja/model
    ```
 
-5. 環境変数ファイル`.env`を以下のように編集する。
+5. 構成ファイル（`babbly/ja/config_en.yaml`）を開き、**WAKEUP_PHRASE**と**EXIT_PHRASE**を編集する。それ以外の項目は変更をしない。  
    *ウェイクアップフレーズは、呼びやすくて、認識されやすければ何でも大丈夫。好きな名前を設定してくれ*
 
-   ``` .env
-   WAKEUP_PHRASE="バブリー"
-   EXIT_PHRASE="終了"
-   COMMANDS_PATH=babbly/JP/commands.txt
-   TARGETS_PATH=babbly/JP/targets.json
-   SOP_PATH=babbly/JP/sop.json
-   MODEL_PATH=babbly/JP/model
+   ``` yaml
+   WAKEUP_PHRASE: "バブリー"
+   EXIT_PHRASE: "終了"
+   COMMANDS_PATH: "babbly/ja/commands.txt"
+   TARGETS_PATH: "babbly/ja/targets.json"
+   SOP_PATH: "babbly/ja/sop.json"
+   MODEL_PATH: "babbly/ja/model"
    ```
+
+## 使い方
+
+1. `babbly_ja.py`を実行する。
+2. システムの開始を知らせる音声が発せられたら、ウェイクアップフレーズを言ってください。
+3. ウェイクアップフレーズを認識すると、命令待機状態に移行するので命令を与えてください。（例：ネットワークをスキャンして）
+4. 例えば、ネットワークのスキャンを命じた場合、命令を受け付けたプログラムは内部でNmapコマンドを実行し、発見したホストを報告します。
+5. ネットワークのスキャンを終えると見つかったホストのIPアドレスをターゲット情報として`targets.json`に記録します。
+6. 終了するときは、命令待機状態の時に終了フレーズを言ってください。

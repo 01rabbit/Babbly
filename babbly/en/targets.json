@@ -2,57 +2,57 @@
     {
         "VoiceAlias": "target alpha",
         "ID": "a",
-        "IP": "127.0.0.1"
+        "IP": "192.168.40.1"
     },
     {
         "VoiceAlias": "target bravo",
         "ID": "b",
-        "IP": "127.0.0.1"
+        "IP": "192.168.40.77"
     },
     {
         "VoiceAlias": "target charlie",
         "ID": "c",
-        "IP": "192.168.1.100"
+        "IP": "192.168.40.81"
     },
     {
         "VoiceAlias": "target delta",
         "ID": "d",
-        "IP": "192.168.1.101"
+        "IP": "192.168.40.102"
     },
     {
         "VoiceAlias": "target echo",
         "ID": "e",
-        "IP": "192.168.1.102"
+        "IP": "192.168.40.114"
     },
     {
         "VoiceAlias": "target foxtrot",
         "ID": "f",
-        "IP": "127.0.0.1"
+        "IP": "192.168.40.155"
     },
     {
         "VoiceAlias": "target golf",
         "ID": "g",
-        "IP": "192.168.1.103"
+        "IP": "192.168.40.205"
     },
     {
         "VoiceAlias": "target hotel",
         "ID": "h",
-        "IP": "192.168.1.104"
+        "IP": "192.168.40.220"
     },
     {
         "VoiceAlias": "target india",
         "ID": "i",
-        "IP": ""
+        "IP": "192.168.40.235"
     },
     {
         "VoiceAlias": "target juliet",
         "ID": "j",
-        "IP": "127.0.0.1"
+        "IP": "192.168.40.241"
     },
     {
         "VoiceAlias": "target kilo",
         "ID": "k",
-        "IP": "127.0.0.1"
+        "IP": "192.168.40.250"
     },
     {
         "VoiceAlias": "target lima",

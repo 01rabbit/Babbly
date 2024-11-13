@@ -1,0 +1,6 @@
+WAKEUP_PHRASE: "friday"
+EXIT_PHRASE: "exit"
+COMMANDS_PATH: "babbly/en/commands.txt"
+TARGETS_PATH: "babbly/en/targets.json"
+SOP_PATH: "babbly/en/sop.json"
+MODEL_PATH: "babbly/en/model"
