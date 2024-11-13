@@ -5,10 +5,12 @@ import subprocess
 import yaml
 import threading
 import time
+import logging
 from babbly.en.vosk_asr_module import initialize_vosk_asr, get_asr_result
 from babbly.en.espeak import speak_text_aloud
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
+from babbly.modules.network_scanner import NetworkScanner
 
 
 def load_config(file_path):
@@ -26,15 +28,15 @@ def set_globals(config):
     MODEL_PATH = config.get("MODEL_PATH")
 
 def load_config(file_path):
-        """設定ファイルを読み込む"""
+        """Read the configuration file"""
         with open(file_path, 'r') as file:
             return yaml.safe_load(file)
 
 def load_commands(file_path):
-    """コマンドマッピングの読み込みをする
+    """Read command mapping.
 
     Args:
-       file_path : コマンドファイルのパス
+       file_path : Command file path
     """
     command_map = {}
     with open(file_path, 'r') as file:
@@ -47,11 +49,11 @@ def load_commands(file_path):
 
 def find_target_ip(comparison_list, target_dict):
     """
-    comparison_list内の名前を使用して、target_dictから一致するターゲットのIPアドレスを探す。
+    Find the IP address of the matching target in target_dict using the name in comparison_list.
 
-    :param comparison_list: 検査する名前のリスト。ターゲット名が含まれている。
-    :param target_dict: ターゲットの情報を含む辞書。キーはターゲットのID、値は辞書（{'name': ターゲット名, 'ip': IPアドレス}の形）。
-    :return: 一致するターゲットの名前とIPアドレスのタプル。見つからない場合は (None, None) を返す。
+    :param comparison_list: List of names to examine. It contains the target names.
+    :param target_dict: A dictionary containing information about the target. The key is the target ID and the value is a dictionary (in the form of {'name': target name, 'ip': IP address}).
+    :return: A tuple of matching target names and IP addresses. If not found, returns (None, None).
     """
     # target_dictから名前のリストを作成
     target_names = [value['name'] for value in target_dict.values()]
@@ -104,7 +106,7 @@ def listen_for_command(vosk_asr):
     valid_operations = set(op_manager.get_operation_names())
 
 
-    print("Enter command (say 'exit' to exit)")
+    print(f"Enter command (say '{EXIT_PHRASE}' to exit)")
     speak_text_aloud("Please give me some direction.")
     time.sleep(1)
     while True:
@@ -118,12 +120,12 @@ def listen_for_command(vosk_asr):
         if recog_text:
             print(f"recognized text: {recog_text}")
             userOrder = recog_text
-            #------test--------
+
             target_name, target_ip = find_target_ip(userOrder, target_dict)
 
             if EXIT_PHRASE in userOrder:
-                print("End phrase recognition! Terminates the process.")
-                speak_text_aloud("End phrase recognition! Exit.")
+                print("Recognizes the exit phrase! Exit system.")
+                speak_text_aloud("Exit the system. Thank you.")
                 sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
             elif "introduce" in userOrder:
@@ -150,6 +152,28 @@ def listen_for_command(vosk_asr):
                         break  # 最初に一致したオペレーションを処理した後ループを抜ける
                 except (ValueError, IndexError):
                     pass  # Do nothing if an error occurs
+
+            elif ("scan" or "scanning") and "network" in userOrder:
+                netscan = NetworkScanner()
+                local_ip, netmask = netscan.get_local_ip_and_netmask()
+                if not local_ip or not netmask:
+                    logging.error("Could not retrieve local IP or netmask.")
+                    return
+                network = netscan.get_network_address(local_ip, netmask)
+                speak_text_aloud("Scan the network")
+                discovered_hosts = netscan.discover_hosts(network)
+                for host, status in discovered_hosts:
+                    logging.info(f"Host: {host}, Status: {status}")
+                speak_text_aloud(f"{str(len(discovered_hosts))} hosts found")
+                # Extract IP addresses from discovered_hosts
+                ip_addresses = [host[0] for host in discovered_hosts]
+                ip_manager.register_ip_addresses(ip_addresses, True)
+                break
+
+            elif "tell" and "me" and "target" in userOrder:
+                print(ip_manager.get_ip_address(target_name))
+                speak_text_aloud(ip_manager.get_ip_address(target_name))
+                break
 
             else:
                 print(f"command execution: {recog_text}")
@@ -198,7 +222,8 @@ def main():
     # 音声認識を初期化
     vosk_asr = initialize_vosk_asr(MODEL_PATH)
 
-    print("＜音声認識開始 - 入力を待機します＞")
+    speak_text_aloud(f"Artificial incompetence System , {WAKEUP_PHRASE}, startup")
+    print("<Start speech recognition - waits for input>.")
     while True:
         listen_for_wakeup_phrase(vosk_asr)
 

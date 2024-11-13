@@ -82,3 +82,12 @@ Babbly eliminates the need for online connections or data dependence, providing 
    SOP_PATH: "babbly/en/sop.json"
    MODEL_PATH: "babbly/en/model"
    ```
+
+## How to use
+
+1. Run `babbly_en.py`.
+2. When the voice announces the start of the system, say the wake-up phrase.
+3. When the wake-up phrase is recognized, it will enter a command-waiting state, so please give a command. (e.g., "Scan the network.")
+4. For example, if you command a network scan, the program will accept the command, execute the Nmap command internally, and report the discovered hosts.
+5. After completing the network scan, the IP addresses of the discovered hosts are recorded as target information in `targets.json`.
+6. To end, please say the exit phrase while in the command-waiting state.
