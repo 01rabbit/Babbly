@@ -8,11 +8,11 @@
 
 「**Babbly**」は**人工無能**（**Artificial Incompetence**）を特徴とするペネトレーションテスト支援ツールです。AIに依存せず、自然言語処理と音声認識により直感的な対話型操作を実現します。アイズフリー・ハンズフリーに対応し、音声指示だけでテストを実行できるため、画面確認なしで他の作業と並行して効率的なセキュリティテストが可能です。人間らしい会話形式のインターフェースにより、初心者でも使いやすく、高い柔軟性を備えています。AIが主流の時代に、あえて人工無能を採用することで、親しみやすさと実用性を両立した新しいアプローチを提案します。
 
-### [日本語モード](babbly/JP/README.md)
+### [日本語モード](babbly/ja/README.md)
 
 日本語を使用するユーザは、こちらのリンクをご確認ください。
 
-### [English mode](babbly/EN/README.md)
+### [English mode](babbly/en/README.md)
 
 For users who use English, please check this link.
 
