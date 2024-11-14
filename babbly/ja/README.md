@@ -53,30 +53,28 @@ Babblyは、AIツールが求めるオンライン接続やデータ依存を排
 ## Setup
 
 1. 依存関係のインストール  
-   `open_jtalk`、`mecab`、`aplay`、および必要な辞書データや音声データをインストールします。  
+   `aplay`をインストールします。  
 
     ``` bash
-    sudo apt install open-jtalk open-jtalk-mecab-naist-jdic hts-voice-nitech-jp-atr503-m001 aplay
+    sudo apt install aplay
     ```
 
-2. ディレクトリの配置と確認  
-   辞書ディレクトリ：`/var/lib/mecab/dic/open-jtalk/naist-jdic/`  
-   音声ファイル：`/usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice`  
-
-3. voskモデルのダウンロード  
+2. voskモデルのダウンロード  
 
    | Model | Size | Word error rate/Speed | Notes | License |
    | ---- | ---- |---- | ---- |---- |
    | [vosk-model-small-ja-0.22](https://alphacephei.com/vosk/models/vosk-model-small-ja-0.22.zip) | 48M | 9.52(csj CER) 17.07(ted10k CER) | Lightweight wideband model for Japanese | Apache 2.0 |
    | [vosk-model-ja-0.22](https://alphacephei.com/vosk/models/vosk-model-ja-0.22.zip) | 1Gb | 8.40(csj CER) 13.91(ted10k CER) | Big model for Japanese| Apache 2.0 |
 
-4. ダウンロードしたvoskモデルを`model`とリネームして`Babbly/babbly/ja/`直下に配置する。  
+   *voskモデルは、smallでも問題なく動作します。*
+
+3. ダウンロードしたvoskモデルを`model`とリネームして`Babbly/babbly/ja/`直下に配置する。  
 
    ``` bash
    mv vosk-model-ja-0.22 /home/kali/Babbly/babbly/ja/model
    ```
 
-5. 構成ファイル（`babbly/ja/config_en.yaml`）を開き、**WAKEUP_PHRASE**と**EXIT_PHRASE**を編集する。それ以外の項目は変更をしない。  
+4. 構成ファイル（`babbly/ja/config_en.yaml`）を開き、**WAKEUP_PHRASE**と**EXIT_PHRASE**を編集する。それ以外の項目は変更をしない。  
    *ウェイクアップフレーズは、呼びやすくて、認識されやすければ何でも大丈夫。好きな名前を設定してくれ*
 
    ``` yaml

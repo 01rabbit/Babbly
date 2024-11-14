@@ -7,11 +7,12 @@ import threading
 import time
 import logging
 from babbly.en.vosk_asr_module import initialize_vosk_asr, get_asr_result
-from babbly.en.espeak import speak_text_aloud
+from babbly.en.tts_speaker import PicoTTS
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.network_scanner import NetworkScanner
 
+tts = PicoTTS()
 
 def load_config(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -86,7 +87,7 @@ def listen_for_wakeup_phrase(vosk_asr):
             userOrder = recog_text
             if WAKEUP_PHRASE in userOrder:
                 print("Wakeup phrase recognition! Wait for next input.")
-                speak_text_aloud("Yes Boss")
+                tts.say("Yes Boss")
                 listen_for_command(vosk_asr)  # ウェイクアップ後にコマンドを待機
 
 def listen_for_command(vosk_asr):
@@ -107,7 +108,7 @@ def listen_for_command(vosk_asr):
 
 
     print(f"Enter command (say '{EXIT_PHRASE}' to exit)")
-    speak_text_aloud("Please give me some direction.")
+    tts.say("Please give me some direction.")
     time.sleep(1)
     while True:
         # ファイル変更の監視
@@ -125,15 +126,15 @@ def listen_for_command(vosk_asr):
 
             if EXIT_PHRASE in userOrder:
                 print("Recognizes the exit phrase! Exit system.")
-                speak_text_aloud("Exit the system. Thank you.")
+                tts.say("Exit the system. Thank you.")
                 sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
             elif "introduce" in userOrder:
                 print("Self Introductions.")
                 message = f"I am {WAKEUP_PHRASE}. I am an artificial incompetent developed by Mr. Rabbit."
-                speak_text_aloud(message)
+                tts.say(message)
                 message = "My role is to support you effectively in penetration testing."
-                speak_text_aloud(message)
+                tts.say(message)
                 print("Wait for the wake-up phrase again.")
                 break  # ウェイクアップフレーズの待機に戻る
             
@@ -160,11 +161,11 @@ def listen_for_command(vosk_asr):
                     logging.error("Could not retrieve local IP or netmask.")
                     return
                 network = netscan.get_network_address(local_ip, netmask)
-                speak_text_aloud("Scan the network")
+                tts.say("Scan the network")
                 discovered_hosts = netscan.discover_hosts(network)
                 for host, status in discovered_hosts:
                     logging.info(f"Host: {host}, Status: {status}")
-                speak_text_aloud(f"{str(len(discovered_hosts))} hosts found")
+                tts.say(f"{str(len(discovered_hosts))} hosts found")
                 # Extract IP addresses from discovered_hosts
                 ip_addresses = [host[0] for host in discovered_hosts]
                 ip_manager.register_ip_addresses(ip_addresses, True)
@@ -172,7 +173,7 @@ def listen_for_command(vosk_asr):
 
             elif "tell" and "me" and "target" in userOrder:
                 print(ip_manager.get_ip_address(target_name))
-                speak_text_aloud(ip_manager.get_ip_address(target_name))
+                tts.say(ip_manager.get_ip_address(target_name))
                 break
 
             else:
@@ -181,7 +182,7 @@ def listen_for_command(vosk_asr):
 
                 if matching_items:
                     for matched_key in matching_items:
-                        speak_text_aloud(f"Execute {matched_key}")
+                        tts.say(f"Execute {matched_key}")
 
                         # コマンド情報を取得
                         command_info = command_map[matched_key]
@@ -210,11 +211,11 @@ def perform_action(command, target_ip=None):
         
         # 実行結果を出力
         print(f"コマンドの実行結果: {result.stdout}")
-        speak_text_aloud("Command executed.")
+        tts.say("Command executed.")
     except subprocess.CalledProcessError as e:
         # エラー時の処理
         print(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
-        speak_text_aloud("Command execution failed.")
+        tts.say("Command execution failed.")
 
 def main():
     config = load_config("babbly/en/config_en.yaml")
@@ -222,7 +223,7 @@ def main():
     # 音声認識を初期化
     vosk_asr = initialize_vosk_asr(MODEL_PATH)
 
-    speak_text_aloud(f"Artificial incompetence System , {WAKEUP_PHRASE}, startup")
+    tts.say(f"Artificial incompetence System , {WAKEUP_PHRASE}, startup")
     print("<Start speech recognition - waits for input>.")
     while True:
         listen_for_wakeup_phrase(vosk_asr)

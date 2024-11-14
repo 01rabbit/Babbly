@@ -18,6 +18,8 @@ netifaces = "*"
 pymetasploit3 = "*"
 pyyaml = "*"
 python-dotenv = "*"
+pyopenjtalk = "*"
+scapy = "*"
 
 [dev-packages]
 

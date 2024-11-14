@@ -5,13 +5,16 @@ import subprocess
 import yaml
 import threading
 import logging
+import time
 from janome.analyzer import Analyzer
 from janome.tokenfilter import CompoundNounFilter
 from babbly.ja.vosk_asr_module import initialize_vosk_asr, get_asr_result
-from babbly.ja.speech import speak_text_aloud
+from babbly.ja.voice_synthesizer import VoiceSynthesizer
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.network_scanner import NetworkScanner
+
+synthesizer = VoiceSynthesizer()
 
 def load_config(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -95,7 +98,7 @@ def listen_for_wakeup_phrase(vosk_asr):
             userOrder = analyze_text(recog_text)
             if WAKEUP_PHRASE in userOrder:
                 print("ウェイクアップフレーズ認識！次の入力を待機します。")
-                speak_text_aloud("はい、ボス")
+                synthesizer.create_voice("はい、ボス")
                 listen_for_command(vosk_asr)  # ウェイクアップ後にコマンドを待機
 
 def listen_for_command(vosk_asr):
@@ -114,7 +117,8 @@ def listen_for_command(vosk_asr):
 
 
     print(f"コマンドを入力してください（終了するには {EXIT_PHRASE} を言ってください）")
-    speak_text_aloud("指示をどうぞ")
+    synthesizer.create_voice("指示をどうぞ")
+    time.sleep(1)
     while True:
         # ファイル変更の監視
         if os.path.getmtime(COMMANDS_PATH) != last_modified:
@@ -131,15 +135,15 @@ def listen_for_command(vosk_asr):
 
             if EXIT_PHRASE in userOrder:
                 print("終了フレーズ認識！処理を終了します。")
-                speak_text_aloud("システムを終了します")
+                synthesizer.create_voice("システムを終了します。お疲れ様でした。")
                 sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
             elif "自己紹介" in userOrder:
                 print("自己紹介をします")
                 message = f"私は{WAKEUP_PHRASE}。ミスターラビットによって開発された人工無能です"
-                speak_text_aloud(message)
+                synthesizer.create_voice(message)
                 message = "私の役割は、ペネトレーションテストにおいて、あなたを効果的にサポートすることです"
-                speak_text_aloud(message)
+                synthesizer.create_voice(message)
                 print("再度ウェイクアップフレーズを待機します。")
                 break  # ウェイクアップフレーズの待機に戻る
             
@@ -164,11 +168,11 @@ def listen_for_command(vosk_asr):
                     logging.error("Could not retrieve local IP or netmask.")
                     return
                 network = netscan.get_network_address(local_ip, netmask)
-                speak_text_aloud("ネットワークをスキャンします")
+                synthesizer.create_voice("ネットワークをスキャンします")
                 discovered_hosts = netscan.discover_hosts(network)
                 for host, status in discovered_hosts:
                     logging.info(f"Host: {host}, Status: {status}")
-                speak_text_aloud(f"{str(len(discovered_hosts))}個のホストを発見")
+                synthesizer.create_voice(f"{str(len(discovered_hosts))}個のホストを発見")
                 # discovered_hostsからIPアドレスを抽出
                 ip_addresses = [host[0] for host in discovered_hosts]
                 ip_manager.register_ip_addresses(ip_addresses, True)
@@ -176,7 +180,7 @@ def listen_for_command(vosk_asr):
 
             elif "ターゲット" and "教える" in userOrder:
                 print(ip_manager.get_ip_address(target_name))
-                speak_text_aloud(ip_manager.get_ip_address(target_name))
+                synthesizer.create_voice(ip_manager.get_ip_address(target_name))
                 break
 
             else:
@@ -185,7 +189,7 @@ def listen_for_command(vosk_asr):
 
                 if matching_items:
                     for matched_key in matching_items:
-                        speak_text_aloud(f"{matched_key}を実行します")
+                        synthesizer.create_voice(f"{matched_key}を実行します")
 
                         # コマンド情報を取得
                         command_info = command_map[matched_key]
@@ -214,11 +218,11 @@ def perform_action(command, target_ip=None):
         
         # 実行結果を出力
         logging.info(f"コマンドの実行結果: {result.stdout}")
-        speak_text_aloud("コマンドを実行しました")
+        synthesizer.create_voice("コマンドを実行しました")
     except subprocess.CalledProcessError as e:
         # エラー時の処理
         logging.error(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
-        speak_text_aloud("コマンドの実行に失敗しました")
+        synthesizer.create_voice("コマンドの実行に失敗しました")
 
 def main():
     config = load_config("babbly/ja/config_ja.yaml")
@@ -226,7 +230,7 @@ def main():
     # 音声認識を初期化
     vosk_asr = initialize_vosk_asr(MODEL_PATH)
 
-    speak_text_aloud(f"人工無能システム、{WAKEUP_PHRASE}、起動")
+    synthesizer.create_voice(f"人工無能システム、{WAKEUP_PHRASE}、起動します。")
     print("＜音声認識開始 - 入力を待機します＞")
     while True:
         listen_for_wakeup_phrase(vosk_asr)
