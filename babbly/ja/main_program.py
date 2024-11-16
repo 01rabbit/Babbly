@@ -178,7 +178,7 @@ def listen_for_command(vosk_asr):
                 ip_manager.register_ip_addresses(ip_addresses, True)
                 break
 
-            elif "ターゲット" and "教える" in userOrder:
+            elif "ターゲット" and ("教える" or "表示") in userOrder:
                 print(ip_manager.get_ip_address(target_name))
                 synthesizer.create_voice(ip_manager.get_ip_address(target_name))
                 break
