@@ -9,7 +9,6 @@ numpy = "*"
 soundcard = "*"
 sounddevice = "*"
 speechrecognition = "*"
-pyaudio = "*"
 gtts = "*"
 pyttsx3 = "*"
 readchar = "*"
@@ -20,6 +19,7 @@ pyyaml = "*"
 python-dotenv = "*"
 pyopenjtalk = "*"
 scapy = "*"
+scipy = "*"
 
 [dev-packages]
 

@@ -51,11 +51,11 @@ Babbly eliminates the need for online connections or data dependence, providing 
 
 ## Setup
 
-1. Install to `libttspico-utils`.  
+1. Install to `libttspico-utils`,`alsa-utils`.  
 
    ``` bash
    sudo apt update
-   sudo apt install libttspico-utils
+   sudo apt install libttspico-utils alsa-utils
    ```
 
 2. Download vosk model  

@@ -5,7 +5,7 @@ import subprocess
 import yaml
 import threading
 import logging
-import time
+# import time
 from janome.analyzer import Analyzer
 from janome.tokenfilter import CompoundNounFilter
 from babbly.ja.vosk_asr_module import initialize_vosk_asr, get_asr_result
@@ -118,7 +118,7 @@ def listen_for_command(vosk_asr):
 
     print(f"コマンドを入力してください（終了するには {EXIT_PHRASE} を言ってください）")
     synthesizer.create_voice("指示をどうぞ")
-    time.sleep(1)
+    # time.sleep(1)
     while True:
         # ファイル変更の監視
         if os.path.getmtime(COMMANDS_PATH) != last_modified:

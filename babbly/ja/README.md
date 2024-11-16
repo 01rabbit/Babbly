@@ -53,10 +53,10 @@ Babblyは、AIツールが求めるオンライン接続やデータ依存を排
 ## Setup
 
 1. 依存関係のインストール  
-   `aplay`をインストールします。  
+   `alsa-utils`をインストールします。  
 
     ``` bash
-    sudo apt install aplay
+    sudo apt install alsa-utils
     ```
 
 2. voskモデルのダウンロード  
