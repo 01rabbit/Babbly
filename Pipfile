@@ -20,6 +20,8 @@ python-dotenv = "*"
 pyopenjtalk = "*"
 scapy = "*"
 scipy = "*"
+pyfiglet = "*"
+termcolor = "*"
 
 [dev-packages]
 

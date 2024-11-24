@@ -13,7 +13,7 @@ class VoiceResult:
     duration: float  # 音声の長さ（秒）
     settings: Dict[str, float]  # 使用された設定値
 
-class VoiceSynthesizer:
+class Japanese_TTS:
     """
     OpenJTalkを使用した音声合成のクラス
     設定の管理と音声生成、再生を担当
@@ -90,7 +90,7 @@ class VoiceSynthesizer:
         except FileNotFoundError:
             print("aplayコマンドが見つかりません。システムに適切な音声再生プログラムがインストールされているか確認してください。")
     
-    def create_voice(self, 
+    def say(self, 
                     text: str,
                     output_filename: Optional[str] = None,
                     preset: Optional[str] = None,
@@ -164,8 +164,8 @@ class VoiceSynthesizer:
         return self.presets.get(preset)
 
 def example_usage():
-    synthesizer = VoiceSynthesizer()
-    synthesizer.create_voice("人工無能システム、バブリー、起動します")
+    synthesizer = Japanese_TTS()
+    synthesizer.say("人工無能システム、バブリー、起動します")
 
 if __name__ == "__main__":
     example_usage()

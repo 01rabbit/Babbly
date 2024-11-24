@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "eee7de50fab1a65e5a40ca1c69de3ba55eb18d225708d6e56c35bb40b0bcde83"
+            "sha256": "a3775541c206bfb10a06f61bae65498c2341cecd9580ca0e795fa495f187fd92"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -431,6 +431,15 @@
             "markers": "python_version >= '3.8'",
             "version": "==2.22"
         },
+        "pyfiglet": {
+            "hashes": [
+                "sha256:758788018ab8faaddc0984e1ea05ff330d3c64be663c513cc1f105f6a3066dab",
+                "sha256:889b351d79c99e50a3f619c8f8e6ffdb27fd8c939fc43ecbd7559bd57d5f93ea"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==1.0.2"
+        },
         "pymetasploit3": {
             "hashes": [
                 "sha256:cb8601428eaf6befcd12e13e0967ae7a8d1a1081c49c465806bd561fdd2a1f14"
@@ -631,6 +640,15 @@
             ],
             "markers": "python_version >= '2.7'",
             "version": "==3.5.3"
+        },
+        "termcolor": {
+            "hashes": [
+                "sha256:37b17b5fc1e604945c2642c872a3764b5d547a48009871aea3edd3afa180afb8",
+                "sha256:998d8d27da6d48442e8e1f016119076b690d962507531df4890fcd2db2ef8a6f"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==2.5.0"
         },
         "tqdm": {
             "hashes": [

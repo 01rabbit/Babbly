@@ -1,11 +1,9 @@
-# pico_tts.py
-
 import subprocess
 import os
 import tempfile
 from typing import Optional
 
-class PicoTTS:
+class English_TTS:
     """
     Pico TTS wrapper class for text-to-speech conversion.
     
@@ -104,3 +102,4 @@ class PicoTTS:
             str: The last error message
         """
         return self.last_error
+

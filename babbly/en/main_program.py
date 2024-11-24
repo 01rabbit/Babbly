@@ -2,22 +2,18 @@
 import sys
 import os
 import subprocess
-import yaml
 import threading
 import time
 import logging
+import pyfiglet
 from babbly.en.vosk_asr_module import initialize_vosk_asr, get_asr_result
-from babbly.en.tts_speaker import PicoTTS
+from babbly.en.english_tts import English_TTS
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.network_scanner import NetworkScanner
+from babbly.modules.utils import load_commands, load_config, set_globals
 
-tts = PicoTTS()
-
-def load_config(file_path):
-    with open(file_path, 'r', encoding='utf-8') as file:
-        config = yaml.safe_load(file)
-    return config
+tts = English_TTS()
 
 def set_globals(config):
     global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH, MODEL_PATH
@@ -27,26 +23,6 @@ def set_globals(config):
     TARGETS_PATH = config.get("TARGETS_PATH")
     SOP_PATH = config.get("SOP_PATH")
     MODEL_PATH = config.get("MODEL_PATH")
-
-def load_config(file_path):
-        """Read the configuration file"""
-        with open(file_path, 'r') as file:
-            return yaml.safe_load(file)
-
-def load_commands(file_path):
-    """Read command mapping.
-
-    Args:
-       file_path : Command file path
-    """
-    command_map = {}
-    with open(file_path, 'r') as file:
-        # 1行目をスキップする
-        next(file)
-        for line in file:
-            key, command, arg_flg = line.strip().split(',')
-            command_map[key] = {'command': command, 'arg_flg': int(arg_flg)}
-    return command_map
 
 def find_target_ip(comparison_list, target_dict):
     """
@@ -80,15 +56,20 @@ def listen_for_wakeup_phrase(vosk_asr):
 
     :param:vosk_asr (VoskStreamingASR): Voice Recognition Module
     """
-    while True:
-        recog_text = get_asr_result(vosk_asr)
-        if recog_text:
-            print(f"recognized text: {recog_text}")
-            userOrder = recog_text
-            if WAKEUP_PHRASE in userOrder:
-                print("Wakeup phrase recognition! Wait for next input.")
-                tts.say("Yes Boss")
-                listen_for_command(vosk_asr)  # ウェイクアップ後にコマンドを待機
+    try:
+        while True:
+            recog_text = get_asr_result(vosk_asr)
+            if recog_text:
+                print(f"recognized text: {recog_text}")
+                userOrder = recog_text
+                if WAKEUP_PHRASE in userOrder:
+                    print("Wakeup phrase recognition! Wait for next input.")
+                    tts.say("Yes Boss")
+                    listen_for_command(vosk_asr)  # ウェイクアップ後にコマンドを待機
+    except KeyboardInterrupt:
+        print("\nCtrl+C is pressed. Exit the program.")
+        logging.info("System Shutdown")
+        exit()
 
 def listen_for_command(vosk_asr):
     """Waits for command input after wake-up.
@@ -98,106 +79,103 @@ def listen_for_command(vosk_asr):
     command_map = load_commands(COMMANDS_PATH)
     last_modified = os.path.getmtime(COMMANDS_PATH)
 
-    #-----test--------
     ip_manager = IPAddressManager(TARGETS_PATH)
     target_dict = ip_manager.load_targets()
-    # OperationManager クラスのインスタンスを作成
+
     op_manager = OperationManager(SOP_PATH)
     # sop.jsonからオペレーション名のリストを取得
     valid_operations = set(op_manager.get_operation_names())
 
+    try:
+        print(f"Enter command (say '{EXIT_PHRASE}' to exit)")
+        tts.say("Please give me some direction.")
+        time.sleep(1)
+        while True:
+            # 音声認識結果を取得
+            recog_text = get_asr_result(vosk_asr)
+            if recog_text:
+                print(f"recognized text: {recog_text}")
+                userOrder = recog_text
 
-    print(f"Enter command (say '{EXIT_PHRASE}' to exit)")
-    tts.say("Please give me some direction.")
-    time.sleep(1)
-    while True:
-        # ファイル変更の監視
-        if os.path.getmtime(COMMANDS_PATH) != last_modified:
-            command_map = load_commands(COMMANDS_PATH)
-            last_modified = os.path.getmtime(COMMANDS_PATH)
+                target_name, target_ip = find_target_ip(userOrder, target_dict)
 
-        # 音声認識結果を取得
-        recog_text = get_asr_result(vosk_asr)
-        if recog_text:
-            print(f"recognized text: {recog_text}")
-            userOrder = recog_text
+                if EXIT_PHRASE in userOrder:
+                    print("Recognizes the exit phrase! Exit system.")
+                    tts.say("Exit the system. Thank you.")
+                    sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
-            target_name, target_ip = find_target_ip(userOrder, target_dict)
+                elif "introduce" in userOrder:
+                    print("Self Introductions.")
+                    message = f"I am Babbly. I am an artificial incompetence developed by Mr.Rabbit."
+                    tts.say(message)
+                    message = "My role is to support you effectively in penetration testing."
+                    tts.say(message)
+                    print("Wait for the wake-up phrase again.")
+                    break  # ウェイクアップフレーズの待機に戻る
+                
+                # オペレーション名のチェックと実行処理
+                elif "operation" in userOrder:
+                    try:
+                        operation_num = userOrder.index("operation")
+                        operation_name = f"{userOrder[operation_num]} {userOrder[operation_num + 1]}"
+                        
+                        if operation_name in op_manager.get_operation_names():
+                            if "describe" or "explain" in userOrder:
+                                print(op_manager.get_operation_info(operation_name))
+                            else:
+                                print(f"'{operation_name}' has been recognized. Execute.")
+                                # ここにオペレーション実行のコードを追加
+                            break  # 最初に一致したオペレーションを処理した後ループを抜ける
+                    except (ValueError, IndexError):
+                        pass  # Do nothing if an error occurs
 
-            if EXIT_PHRASE in userOrder:
-                print("Recognizes the exit phrase! Exit system.")
-                tts.say("Exit the system. Thank you.")
-                sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
+                elif ("scan" or "scanning") and "network" in userOrder:
+                    netscan = NetworkScanner()
+                    local_ip, netmask = netscan.get_local_ip_and_netmask()
+                    if not local_ip or not netmask:
+                        logging.error("Could not retrieve local IP or netmask.")
+                        return
+                    network = netscan.get_network_address(local_ip, netmask)
+                    tts.say("Scan the network")
+                    discovered_hosts = netscan.discover_hosts(network)
+                    for host, status in discovered_hosts:
+                        logging.info(f"Host: {host}, Status: {status}")
+                    tts.say(f"{str(len(discovered_hosts))} hosts found")
+                    # Extract IP addresses from discovered_hosts
+                    ip_addresses = [host[0] for host in discovered_hosts]
+                    ip_manager.register_ip_addresses(ip_addresses, True)
+                    break
 
-            elif "introduce" in userOrder:
-                print("Self Introductions.")
-                message = f"I am {WAKEUP_PHRASE}. I am an artificial incompetent developed by Mr. Rabbit."
-                tts.say(message)
-                message = "My role is to support you effectively in penetration testing."
-                tts.say(message)
-                print("Wait for the wake-up phrase again.")
-                break  # ウェイクアップフレーズの待機に戻る
-            
-            # オペレーション名のチェックと実行処理
-            elif "operation" in userOrder:
-                try:
-                    operation_num = userOrder.index("operation")
-                    operation_name = f"{userOrder[operation_num]} {userOrder[operation_num + 1]}"
-                    
-                    if operation_name in op_manager.get_operation_names():
-                        if "describe" or "explain" in userOrder:
-                            print(op_manager.get_operation_info(operation_name))
-                        else:
-                            print(f"'{operation_name}' has been recognized. Execute.")
-                            # ここにオペレーション実行のコードを追加
-                        break  # 最初に一致したオペレーションを処理した後ループを抜ける
-                except (ValueError, IndexError):
-                    pass  # Do nothing if an error occurs
+                elif "tell" and "me" and "target" in userOrder:
+                    print(ip_manager.get_ip_address(target_name))
+                    tts.say(ip_manager.get_ip_address(target_name))
+                    break
 
-            elif ("scan" or "scanning") and "network" in userOrder:
-                netscan = NetworkScanner()
-                local_ip, netmask = netscan.get_local_ip_and_netmask()
-                if not local_ip or not netmask:
-                    logging.error("Could not retrieve local IP or netmask.")
-                    return
-                network = netscan.get_network_address(local_ip, netmask)
-                tts.say("Scan the network")
-                discovered_hosts = netscan.discover_hosts(network)
-                for host, status in discovered_hosts:
-                    logging.info(f"Host: {host}, Status: {status}")
-                tts.say(f"{str(len(discovered_hosts))} hosts found")
-                # Extract IP addresses from discovered_hosts
-                ip_addresses = [host[0] for host in discovered_hosts]
-                ip_manager.register_ip_addresses(ip_addresses, True)
-                break
+                else:
+                    matching_items = set(userOrder) & set(command_map)
+                    if matching_items:
+                        logging.info(f"command execution: {recog_text}")
+                        for matched_key in matching_items:
+                            tts.say(f"Execute {matched_key}")
 
-            elif "tell" and "me" and "target" in userOrder:
-                print(ip_manager.get_ip_address(target_name))
-                tts.say(ip_manager.get_ip_address(target_name))
-                break
+                            # コマンド情報を取得
+                            command_info = command_map[matched_key]
+                            command = command_info['command']
+                            arg_flg = command_info['arg_flg']
 
-            else:
-                print(f"command execution: {recog_text}")
-                matching_items = set(userOrder) & set(command_map)
+                            # 引数フラグが1ならプレースホルダを置き換える
+                            if arg_flg == 1:
+                                action_thread = threading.Thread(target=perform_action, args=(command, target_ip))
+                            else:
+                                action_thread = threading.Thread(target=perform_action, args=(command,))
 
-                if matching_items:
-                    for matched_key in matching_items:
-                        tts.say(f"Execute {matched_key}")
-
-                        # コマンド情報を取得
-                        command_info = command_map[matched_key]
-                        command = command_info['command']
-                        arg_flg = command_info['arg_flg']
-
-                        # 引数フラグが1ならプレースホルダを置き換える
-                        if arg_flg == 1:
-                            action_thread = threading.Thread(target=perform_action, args=(command, target_ip))
-                        else:
-                            action_thread = threading.Thread(target=perform_action, args=(command,))
-
-                        action_thread.start()
-                print("Wait for wake-up phrase again.")
-                break  # ウェイクアップフレーズの待機に戻る
+                            action_thread.start()
+                    print("Wait for wake-up phrase again.")
+                    break  # ウェイクアップフレーズの待機に戻る
+    except KeyboardInterrupt:
+        print("\nCtrl+C is pressed. Exit the program.")
+        logging.info("System Shutdown")
+        exit()
 
 def perform_action(command, target_ip=None):
     """コマンドに基づいて処理を実行する関数."""
@@ -218,12 +196,20 @@ def perform_action(command, target_ip=None):
         tts.say("Command execution failed.")
 
 def main():
+    ascii_art = pyfiglet.figlet_format("Babbly", font="dos_rebel")
+    print(ascii_art)
+
+    logging.info("Program start")
+
     config = load_config("babbly/en/config_en.yaml")
     set_globals(config)
+    logging.info("Configuration loading complete")
+
     # 音声認識を初期化
     vosk_asr = initialize_vosk_asr(MODEL_PATH)
+    logging.info("Voice recognition function Initialization complete")
 
-    tts.say(f"Artificial incompetence System , {WAKEUP_PHRASE}, startup")
+    tts.say(f"Artificial incompetence System , Babbly, activate")
     print("<Start speech recognition - waits for input>.")
     while True:
         listen_for_wakeup_phrase(vosk_asr)

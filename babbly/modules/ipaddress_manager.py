@@ -1,4 +1,5 @@
 import json
+from babbly.ja.japanese_tts import Japanese_TTS
 
 class IPAddressManager:
     """
@@ -17,6 +18,8 @@ class IPAddressManager:
         """
         self.filename = filename
         self.targets = self.load_targets()
+        self.tts = Japanese_TTS
+
 
     def load_targets(self):
         """
@@ -28,6 +31,7 @@ class IPAddressManager:
             data = json.load(file)
             return {item['ID']: {'name': item['VoiceAlias'], 'ip': item['IP']} for item in data}
 
+
     def save_targets(self):
         """
         ターゲット情報をJSONファイルに保存する
@@ -35,6 +39,7 @@ class IPAddressManager:
         data = [{'VoiceAlias': value['name'], 'ID': key, 'IP': value['ip']} for key, value in self.targets.items()]
         with open(self.filename, 'w', encoding='utf-8') as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
+
 
     def change_ip_address(self):
         """
@@ -50,21 +55,36 @@ class IPAddressManager:
         else:
             print("指定されたターゲットが見つかりません。")
 
+
     def get_ip_address(self, input_text):
+        if not input_text:
+            raise ValueError("エラー: 入力がありません。")
+
+        for target in self.targets.values():
+            if target['name'] in input_text:
+                return target['ip']
+
+        raise KeyError("エラー: 一致するターゲットが見つかりません。")
+
+
+    def find_target_ip(self, message):
         """
-        入力テキストに含まれるターゲット名に対応するIPアドレスを返す
+        message内の名前を使用して、target_dictから一致するターゲットのIPアドレスを探す。
+
+        :param message: 検査する名前のリスト。ターゲット名が含まれている。
+        :param target_dict: ターゲットの情報を含む辞書
+        :return: 一致するターゲット名とIPアドレス
+        """
+        # messageの各要素をチェック
+        for item in message:
+            # target_dictの中から一致する名前を探す
+            for value in self.targets.values():
+                if value['name'] == item:
+                    # 一致する名前とIPアドレスを返す
+                    return item, value['ip']
         
-        :param input_text: ターゲット名を含む入力テキスト
-        :return: ターゲット名とIPアドレスを含む文字列、またはエラーメッセージ
-        """
-        if input_text is None:
-            return "エラー: 入力がありません。"
-
-        for key, value in self.targets.items():
-            if value['name'] in input_text:
-                return f"{value['name']}: {value['ip']}"
-        return "指定されたターゲットが見つかりません。"
-
+        # 一致するものがない場合
+        return None, None
 
     def display_all_targets(self):
         """
@@ -72,7 +92,13 @@ class IPAddressManager:
         
         :return: すべてのターゲット情報を含む文字列のリスト
         """
-        return [f"{value['name']}: {value['ip']}" for value in self.targets.values()]
+        target_list = [f"{value['name']}: {value['ip']}" for value in self.targets.values()]
+        
+        # 各ターゲット情報を表示
+        for target in target_list:
+            print(target)
+        
+        return target_list
 
     def register_ip_addresses(self, ip_addresses, overwrite=False):
         """
@@ -100,6 +126,7 @@ class IPAddressManager:
             target['ip'] = ""
         self.save_targets()
         print("全てのIPアドレスを消去しました。")
+
 
     def clear_specific_ip_address(self, target_identifier):
         """
@@ -136,13 +163,10 @@ class IPAddressManager:
 # 使用例
 if __name__ == "__main__":
     # IPAddressManagerのインスタンスを作成
-    manager = IPAddressManager("targets.json")
+    manager = IPAddressManager("babbly/ja/targets.json")
 
     # すべてのターゲットを表示
-    all_targets = manager.display_all_targets()
-    print("すべてのターゲット:")
-    for target in all_targets:
-        print(target)
+    manager.display_all_targets()
 
     # IPアドレスの変更
     manager.change_ip_address()
@@ -167,8 +191,8 @@ if __name__ == "__main__":
 
     # 現在のターゲット情報を表示
     print("\n現在のターゲット情報:")
-    for target in manager.display_all_targets():
-        print(target)
+    manager.display_all_targets()
+
 
     # 上書きモードで登録（既存のIPアドレスも上書き）
     print("\n上書きモードで登録:")
@@ -176,13 +200,11 @@ if __name__ == "__main__":
 
     # 更新後のターゲット情報を表示
     print("\n更新後のターゲット情報:")
-    for target in manager.display_all_targets():
-        print(target)
+    manager.display_all_targets()
 
     # 現在のターゲット情報を表示
     print("消去前のターゲット情報:")
-    for target in manager.display_all_targets():
-        print(target)
+    manager.display_all_targets()
 
     # IDを使用してターゲットのIPアドレスを消去
     manager.clear_specific_ip_address("a")
@@ -192,8 +214,7 @@ if __name__ == "__main__":
 
     # 更新後のターゲット情報を表示
     print("\n消去後のターゲット情報:")
-    for target in manager.display_all_targets():
-        print(target)
+    manager.display_all_targets()
 
     # 存在しないターゲットを指定した場合
     manager.clear_specific_ip_address("存在しないターゲット")

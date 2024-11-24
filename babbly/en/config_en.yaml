@@ -1,4 +1,4 @@
-WAKEUP_PHRASE: "friday"
+WAKEUP_PHRASE: "program"
 EXIT_PHRASE: "exit"
 COMMANDS_PATH: "babbly/en/commands.txt"
 TARGETS_PATH: "babbly/en/targets.json"
