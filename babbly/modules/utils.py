@@ -1,8 +1,27 @@
 #!/usr/bin/python3
 import yaml
 import logging
+from janome.analyzer import Analyzer
+from janome.tokenfilter import CompoundNounFilter
 from babbly.ja.vosk_asr_module import get_asr_result as get_asr_result_ja
 from babbly.en.vosk_asr_module import get_asr_result as get_asr_result_en
+
+def analyze_text(message):
+    """受け取った文字列を形態素解析する
+
+    Args:
+       message : 解析する文字列
+    """
+    messages = []
+    # janomeで形態素解析した結果を複合名詞化してリスト化
+    a = Analyzer(token_filters=[CompoundNounFilter()])
+
+    # `analyze`メソッドで解析を実行し、各トークンを処理する
+    for token in a.analyze(message):
+        # トークンの基本形 (base_form) をリストに追加
+        messages.append(token.base_form)
+
+    return messages
 
 def load_config(file_path):
     """Read the configuration file"""
@@ -95,4 +114,18 @@ def select_target(ip_mgr, tts, vosk_asr, lang_ja):
         print(f"recognized text:  {target_name}")
 
     return ip_mgr.get_ip_address(target_name)
+
+def introduce(tts, lang_ja):
+    if lang_ja:
+        print("自己紹介をします")
+        message = f"私はバブリー。ミスターラビットによって開発された人工無能システムです"
+        tts.say(message)
+        message = "私の役割は、ペネトレーションテストにおいて、あなたをサポートすることです"
+        tts.say(message)
+    else:
+        print("Self Introductions.")
+        message = f"I am Babbly. I am an artificial incompetence system developed by Mr.Rabbit."
+        tts.say(message)
+        message = "My role is to support you effectively in penetration testing."
+        tts.say(message)
 

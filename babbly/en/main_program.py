@@ -1,8 +1,5 @@
 #!/usr/bin/python3
 import sys
-import os
-import subprocess
-import threading
 import time
 import logging
 import pyfiglet
@@ -11,7 +8,8 @@ from babbly.en.english_tts import English_TTS
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.network_scanner import NetworkScanner
-from babbly.modules.utils import load_commands, load_config, set_globals
+from babbly.modules.utils import load_config, assist_command_mode, introduce
+from babbly.modules.commands_manager import CommandManager
 
 tts = English_TTS()
 
@@ -76,11 +74,11 @@ def listen_for_command(vosk_asr):
 
     :param:vosk_asr (VoskStreamingASR): Voice Recognition Module
     """
-    command_map = load_commands(COMMANDS_PATH)
-    last_modified = os.path.getmtime(COMMANDS_PATH)
+    cmd_mgr = CommandManager(COMMANDS_PATH)
+    command_map =cmd_mgr.get_command_map()
 
-    ip_manager = IPAddressManager(TARGETS_PATH)
-    target_dict = ip_manager.load_targets()
+    ip_mgr = IPAddressManager(TARGETS_PATH)
+    # target_dict = ip_mgr.load_targets()
 
     op_manager = OperationManager(SOP_PATH)
     # sop.jsonからオペレーション名のリストを取得
@@ -97,7 +95,7 @@ def listen_for_command(vosk_asr):
                 print(f"recognized text: {recog_text}")
                 userOrder = recog_text
 
-                target_name, target_ip = find_target_ip(userOrder, target_dict)
+                target_name, target_ip = find_target_ip(userOrder)
 
                 if EXIT_PHRASE in userOrder:
                     print("Recognizes the exit phrase! Exit system.")
@@ -105,11 +103,7 @@ def listen_for_command(vosk_asr):
                     sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
                 elif "introduce" in userOrder:
-                    print("Self Introductions.")
-                    message = f"I am Babbly. I am an artificial incompetence developed by Mr.Rabbit."
-                    tts.say(message)
-                    message = "My role is to support you effectively in penetration testing."
-                    tts.say(message)
+                    introduce(tts,lang_ja=0)
                     print("Wait for the wake-up phrase again.")
                     break  # ウェイクアップフレーズの待機に戻る
                 
@@ -131,69 +125,32 @@ def listen_for_command(vosk_asr):
 
                 elif ("scan" or "scanning") and "network" in userOrder:
                     netscan = NetworkScanner()
-                    local_ip, netmask = netscan.get_local_ip_and_netmask()
-                    if not local_ip or not netmask:
-                        logging.error("Could not retrieve local IP or netmask.")
-                        return
-                    network = netscan.get_network_address(local_ip, netmask)
-                    tts.say("Scan the network")
-                    discovered_hosts = netscan.discover_hosts(network)
-                    for host, status in discovered_hosts:
-                        logging.info(f"Host: {host}, Status: {status}")
-                    tts.say(f"{str(len(discovered_hosts))} hosts found")
-                    # Extract IP addresses from discovered_hosts
-                    ip_addresses = [host[0] for host in discovered_hosts]
-                    ip_manager.register_ip_addresses(ip_addresses, True)
+                    netscan.network_scan(tts, ip_mgr, lang_ja=0)
                     break
 
                 elif "tell" and "me" and "target" in userOrder:
-                    print(ip_manager.get_ip_address(target_name))
-                    tts.say(ip_manager.get_ip_address(target_name))
+                    print(f"{target_name}: {target_ip}")
+                    tts.say(f"{target_name}: {target_ip}")
+                    break
+
+                elif "command" in userOrder:
+                    assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_map, lang_ja=0)
                     break
 
                 else:
-                    matching_items = set(userOrder) & set(command_map)
+                    matching_items = set(userOrder) & set(cmd_mgr)
                     if matching_items:
                         logging.info(f"command execution: {recog_text}")
                         for matched_key in matching_items:
                             tts.say(f"Execute {matched_key}")
-
-                            # コマンド情報を取得
-                            command_info = command_map[matched_key]
-                            command = command_info['command']
-                            arg_flg = command_info['arg_flg']
-
-                            # 引数フラグが1ならプレースホルダを置き換える
-                            if arg_flg == 1:
-                                action_thread = threading.Thread(target=perform_action, args=(command, target_ip))
-                            else:
-                                action_thread = threading.Thread(target=perform_action, args=(command,))
-
-                            action_thread.start()
-                    print("Wait for wake-up phrase again.")
+                            cmd_mgr.execute_command(matched_key, target_ip)
                     break  # ウェイクアップフレーズの待機に戻る
+        print("Wait for wake-up phrase again.")
+
     except KeyboardInterrupt:
         print("\nCtrl+C is pressed. Exit the program.")
         logging.info("System Shutdown")
         exit()
-
-def perform_action(command, target_ip=None):
-    """コマンドに基づいて処理を実行する関数."""
-    try:
-        # コマンド内のプレースホルダ `{target_ip}` を置き換える
-        if target_ip:
-            command = command.format(target_ip=target_ip)
-        
-        # コマンドを実行し、結果を取得
-        result = subprocess.run(command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        
-        # 実行結果を出力
-        print(f"コマンドの実行結果: {result.stdout}")
-        tts.say("Command executed.")
-    except subprocess.CalledProcessError as e:
-        # エラー時の処理
-        print(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
-        tts.say("Command execution failed.")
 
 def main():
     ascii_art = pyfiglet.figlet_format("Babbly", font="dos_rebel")
