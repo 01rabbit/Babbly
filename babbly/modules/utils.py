@@ -6,6 +6,7 @@ from janome.tokenfilter import CompoundNounFilter
 from babbly.ja.vosk_asr_module import get_asr_result as get_asr_result_ja
 from babbly.en.vosk_asr_module import get_asr_result as get_asr_result_en
 
+
 def analyze_text(message):
     """受け取った文字列を形態素解析する
 
@@ -50,7 +51,7 @@ def get_phonetic_mapping():
     return mapping
 
 
-def assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_map, lang_ja):
+def assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, search_dict, lang_ja):
     """
     コマンドアシストモードを実行する関数。
 
@@ -59,7 +60,7 @@ def assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_map, lang_ja):
         ip_mgr (IPAddressManager): IPアドレスの管理を行うインスタンス。
         vosk_asr (vosk_asr_module): VOSK音声認識モデルのインスタンス。
         tts (TextToSpeech): テキスト読み上げ機能のインスタンス。
-        command_map (dict): 実行可能なコマンドとその引数情報を格納した辞書。
+        search_dict (dict): 実行可能なコマンドとその引数情報を格納した辞書。
         lang_ja: 日本語かどうか
     Returns:
         None
@@ -71,28 +72,28 @@ def assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_map, lang_ja):
         logging.info("Command Assist Mode is now active")
         tts.say("コマンドの一覧を表示します")
 
-    cmd_mgr.display_command_list()
+    cmd_mgr.display_all_commands()
 
     if lang_ja:
         tts.say("実行するコマンドを選択してください")
-        cmd_name = get_asr_result_ja(vosk_asr)
-        print(f"認識テキスト: {cmd_name}")
+        result = get_asr_result_ja(vosk_asr)
+        print(f"認識テキスト: {result}")
     else:
         tts.say("Please select the command to execute.")
-        cmd_name = get_asr_result_en(vosk_asr)
-        print(f"recognized text: {cmd_name}")
+        result = get_asr_result_en(vosk_asr)
+        print(f"recognized text: {result}")
 
-    if cmd_name in command_map:
-        if command_map[cmd_name]['arg_flg']:
+    cmd_name, cmd_arg_flg = cmd_mgr.get_command_values(result)
+    if cmd_name != None:
+        if cmd_arg_flg:
             target_ip = select_target(ip_mgr, tts, vosk_asr, lang_ja)
-            if target_ip:
+            if target_ip != None:
                 cmd_mgr.execute_command(cmd_name, target_ip)
             else:
                 logging.error("Target not found.")
         else:
             cmd_mgr.execute_command(cmd_name)
-    else:
-        logging.error(f"Command not found.")
+
 
 
 def select_target(ip_mgr, tts, vosk_asr, lang_ja):
@@ -113,7 +114,9 @@ def select_target(ip_mgr, tts, vosk_asr, lang_ja):
         target_name = get_asr_result_en(vosk_asr)
         print(f"recognized text:  {target_name}")
 
-    return ip_mgr.get_ip_address(target_name)
+    target = ip_mgr.get_target(target_name)
+    ipaddress = target['IP']
+    return ipaddress
 
 def introduce(tts, lang_ja):
     if lang_ja:

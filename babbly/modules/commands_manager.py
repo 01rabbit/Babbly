@@ -1,61 +1,126 @@
 import threading
 import subprocess
 import logging
-from babbly.modules.utils import get_phonetic_mapping
+import json
 
+from ipaddress_manager import IPAddressManager
 
 class CommandManager:
-    """コマンドの管理・実行を行うクラス。"""
+    """コマンドの管理・検索・実行を行うクラス。"""
 
-    def __init__(self, command_file_path):
+    def __init__(self, json_file_path):
         """
-        初期化メソッド。コマンドマップをロードする。
-        
+        初期化メソッド。コマンドデータをロードし補助辞書を作成する。
+
         Args:
-            command_file_path (str): コマンド定義ファイルのパス。
+            json_file_path (str): コマンド定義ファイルのパス。
         """
-        self.command_map = self._load_commands(command_file_path)
+        self.command_map = self._load_commands(json_file_path)
+        self.search_dict = {}
+        self._build_search_dict()
 
-    @staticmethod
-    def _load_commands(file_path):
-        """コマンド定義ファイルを読み込むメソッド。
-        
+    def _load_commands(self, file_path):
+        """JSONファイルからコマンドデータをロードする。
+
         Args:
-           file_path (str): コマンドファイルのパス。
-        
-        Returns:
-           dict: キーとコマンド情報を格納した辞書。
-        """
-        command_map = {}
-        with open(file_path, 'r') as file:
-            # 1行目をスキップする
-            next(file)
-            for line in file:
-                key, command, arg_flg = line.strip().split(',')
-                command_map[key] = {'command': command, 'arg_flg': int(arg_flg)}
-        return command_map
+            file_path (str): JSONファイルのパス。
 
-    def get_command_map(self):
-        """現在のコマンドマップを返すメソッド。
-        
         Returns:
-            dict: 現在ロードされているコマンドマップ。
+            dict: コマンドデータ。
         """
-        return self.command_map
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            raise Exception(f"JSONファイル '{file_path}' が見つかりません。")
+        except json.JSONDecodeError:
+            raise Exception(f"JSONファイル '{file_path}' の形式が不正です。")
+
+
+    def _build_search_dict(self):
+        """補助辞書を作成する。"""
+        phonetic_codes = {
+            "a": ["alpha", "アルファ"],
+            "b": ["bravo", "ブラボー"],
+            "c": ["charlie", "チャーリー"],
+            "d": ["delta", "デルタ"],
+            "e": ["echo", "エコー"],
+            "f": ["foxtrot", "フォックスロット"],
+            "g": ["golf", "ゴルフ"],
+            "h": ["hotel", "ホテル"],
+            "i": ["india", "インディア"],
+            "j": ["juliet", "ジュリエット"]
+        }
+
+        # 補助辞書作成
+        for key, record in self.command_map.items():
+            # 通常キーの登録
+            self.search_dict[key] = record
+            self.search_dict[record["ID"]] = record
+            self.search_dict[record["VoiceAlias"]] = record
+
+            # ID をキーにフォネティックコードを登録
+            phonetic_entries = phonetic_codes.get(record["ID"])
+            if phonetic_entries:
+                for code in phonetic_entries:
+                    self.search_dict[code.lower()] = record  # 小文字で登録
+
+
+    def get_search_dict(self):
+        return self.search_dict
+
+
+    def get_command_values(self, search_key):
+        """
+        指定されたキー（コマンド名、ID、アルファベット、フォネティックコード）に対応する arg_flg の値を返す。
+
+        Args:
+            search_key (str): 検索するキー（コマンド名、ID、アルファベット、フォネティックコードなど）。
+
+        Returns:
+            int: 該当する項目の arg_flg 値。
+        """
+        try:
+            record = self.search_dict[search_key]
+            return record["VoiceAlias"], record["Arg_flg"]
+        except KeyError:
+            return None,None
+
+    def display_all_commands(self):
+        """
+        すべてのコマンド情報を表示する。
+
+        Returns:
+            list: すべてのコマンド情報を含む文字列のリスト。
+        """
+        command_list = [
+            f"{key}. {record['ID']}: {record['VoiceAlias']} {record['Command']}"
+            for key, record in self.command_map.items()
+        ]
+
+        # 表示
+        for command in command_list:
+            print(command)
+
+        return command_list
+
 
     def execute_command(self, matched_key, target_ip=None):
         """
         コマンド情報を取得し、スレッドでアクションを実行する。
         
         Args:
-            matched_key (str): コマンドマップ内のキー。
+            matched_key (str): 番号、ID、またはVoiceAlias。
             target_ip (str, optional): プレースホルダを置き換えるためのターゲットIP。デフォルトはNone。
         """
         try:
-            # コマンド情報を取得
-            command_info = self.command_map[matched_key]
-            command = command_info['command']
-            arg_flg = command_info.get('arg_flg', 0)  # デフォルト値は 0
+            # 直接 command_map からコマンド情報を検索
+            command_info = self.search_dict.get(matched_key)
+            if not command_info:  # コマンド情報が見つからない場合のエラー
+                raise KeyError(f"指定されたキー '{matched_key}' に対応するコマンドが見つかりません。")
+            
+            command = command_info["Command"]
+            arg_flg = command_info["Arg_flg"]
 
             # 引数フラグが1のときにtarget_ipが指定されていない場合のチェック
             if arg_flg == 1 and not target_ip:
@@ -70,8 +135,8 @@ class CommandManager:
             # スレッドを開始
             action_thread.start()
 
-        except KeyError:
-            logging.error(f"Error: The key '{matched_key}' does not exist in the command map.")
+        except KeyError as e:
+            logging.error(f"Error: {e}")
         except ValueError as e:
             logging.error(f"Error: {e}")
         except Exception as e:
@@ -99,24 +164,9 @@ class CommandManager:
             # エラー時の処理
             logging.error(f"コマンドの実行中にエラーが発生しました: {e.stderr}")
 
-    def display_command_list(self):
-        """コマンドマップをアルファベット付きで一覧表示する。"""
-        print("コマンド一覧:")
-        for index, (key, value) in enumerate(self.command_map.items(), start=0):
-            print(f"{chr(97 + index)}. {key}: {value['command']}")
 
+if __name__ == "__main__":
+    manager = CommandManager("babbly/ja/commands.json")
+    command_dict = manager.get_search_dict()
+    userOrder ={'ターゲットアルファ', 'に対して', 'テスト', 'を', '実行'}
 
-    def select_command_by_voice(self, user_input):
-        """音声認識を使ってコマンドを選択し、対応するコマンドを実行する。"""
-        # フォネティックコードのマッピングを取得
-        phonetic_mapping = get_phonetic_mapping()
-
-        # 音声入力をアルファベットにマッピング
-        selected_key = phonetic_mapping.get(user_input)
-        if selected_key:
-            # 対応するコマンドを取得して実行
-            matched_key = list(self.command_map.keys())[ord(selected_key) - 97]
-            # print(f"選択されたコマンド: {matched_key}")
-            self.execute_command(matched_key)
-        else:
-            logging.error("An unrecognized command was specified.")

@@ -12,6 +12,7 @@ from babbly.modules.utils import load_config, assist_command_mode, introduce
 from babbly.modules.commands_manager import CommandManager
 
 tts = Japanese_TTS()
+lang_ja = 1
 
 # グローバル変数に代入する関数
 def set_globals(config):
@@ -52,10 +53,10 @@ def listen_for_command(vosk_asr):
     :param:vosk_asr (VoskStreamingASR): 音声認識モジュール
     """
     cmd_mgr = CommandManager(COMMANDS_PATH)
-    command_map =cmd_mgr.get_command_map()
+    command_dict = cmd_mgr.get_search_dict()
 
     ip_mgr = IPAddressManager(TARGETS_PATH)
-    # target_dict = ip_mgr.load_targets()
+    target_dict = ip_mgr.get_search_dict()
 
     op_manager = OperationManager(SOP_PATH)
     valid_operations = set(op_manager.get_operation_names())
@@ -71,7 +72,6 @@ def listen_for_command(vosk_asr):
                 print(f"認識テキスト: {recog_text}")
                 userOrder = analyze_text(recog_text)
 
-                target_name, target_ip = ip_mgr.find_target_ip(userOrder)
 
                 if EXIT_PHRASE in userOrder:
                     print("終了フレーズ認識！処理を終了します。")
@@ -79,7 +79,7 @@ def listen_for_command(vosk_asr):
                     sys.exit(0)  # 終了フレーズが認識されたらプログラムを終了
 
                 elif "自己紹介" in userOrder:
-                    introduce(tts, lang_ja=1)
+                    introduce(tts, lang_ja)
                     break
                 
                 # オペレーション名のチェックと実行処理
@@ -98,28 +98,46 @@ def listen_for_command(vosk_asr):
 
                 elif "ネットワーク" and "スキャン" in userOrder:
                     netscan = NetworkScanner()
-                    netscan.network_scan(tts, ip_mgr, lang_ja=1)
+                    netscan.network_scan(tts, ip_mgr, lang_ja)
                     break
 
                 elif "ターゲット" and ("教える" or "表示") in userOrder:
-                    print(f"{target_name}: {target_ip}")
-                    tts.say(f"{target_name}: {target_ip}")
+                    target_name, target_ip = ip_mgr.find_target_ip(userOrder)
+                    if target_name:
+                        print(f"{target_name}: {target_ip}")
+                        tts.say(f"{target_name}: {target_ip}")
+                    else:
+                        print(f"{target_name}が見つかりません")
                     break
 
                 elif "コマンド" in userOrder:
-                    assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_map,lang_ja=1)
+                    assist_command_mode(cmd_mgr, ip_mgr, vosk_asr, tts, command_dict,lang_ja)
                     break
 
                 else:
-                    matching_items = set(userOrder) & set(command_map)
+                    matching_items = set(userOrder) & set(command_dict)
                     if matching_items:
-                        logging.info(f"コマンド実行: {recog_text}")
                         for matched_key in matching_items:
-                            tts.say(f"{matched_key}を実行します")
-                            cmd_mgr.execute_command(matched_key, target_ip)
-                    break
+                            cmd_name, cmd_arg_flg = cmd_mgr.get_command_values(matched_key)
+                            logging.info(f"コマンド実行: {cmd_name}")
+                            tts.say(f"{cmd_name}を実行します")
+                            if cmd_arg_flg:
+                                matching_items = set(userOrder) & set(target_dict)
+                                if matching_items:
+                                    for matched_key in matching_items:
+                                        target = ip_mgr.get_target(matched_key)
+                                        cmd_mgr.execute_command(matched_key, target['IP'])
+                                        break
+                                else:
+                                    logging.error("不明なターゲット")
+                                    break
+                            else:
+                                cmd_mgr.execute_command(matched_key)
+                                break
+                    else:
+                        logging.error("不明なコマンド")
+                        break
         print("再度ウェイクアップフレーズを待機します。")
-
     except KeyboardInterrupt:
         print("\nCtrl+Cが押されました。プログラムを終了します。")
         logging.info("システム終了")
@@ -139,8 +157,8 @@ def main():
     vosk_asr = initialize_vosk_asr(MODEL_PATH)
     logging.info("音声認識機能 初期化完了")
 
-    tts.say(f"人工無能システム、バブリー、起動します。")
     print("＜音声認識開始 - 入力を待機します＞")
+    tts.say(f"人工無能システム、バブリー、起動します。")
     while True:
         listen_for_wakeup_phrase(vosk_asr)
 

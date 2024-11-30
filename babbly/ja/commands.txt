@@ -1,6 +1,0 @@
-# コマンド呼び出しフレーズ,コマンド,IPアドレスを引数として使うか
-テスト,ls,0
-プログラム,pwd,0
-スキャン,id,0
-試験,ping -c 1 {target_ip},1
-エヌマップ,nmap -oX {target_ip}_log.xml {target_ip},1
