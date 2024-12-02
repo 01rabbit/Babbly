@@ -8,7 +8,7 @@ from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.network_scanner import NetworkScanner
 from babbly.modules.utils import analyze_text # 日本語環境限定
-from babbly.modules.utils import load_config, assist_command_mode, introduce
+from babbly.modules.utils import load_config, assist_command_mode, select_target, introduce
 from babbly.modules.commands_manager import CommandManager
 
 tts = Japanese_TTS()
@@ -58,8 +58,8 @@ def listen_for_command(vosk_asr):
     ip_mgr = IPAddressManager(TARGETS_PATH)
     target_dict = ip_mgr.get_search_dict()
 
-    op_manager = OperationManager(SOP_PATH)
-    valid_operations = set(op_manager.get_operation_names())
+    op_mgr = OperationManager(SOP_PATH)
+    operation_dict = op_mgr.get_search_dict()
 
     try:
         print(f"コマンドを入力してください（終了するには {EXIT_PHRASE} を言ってください）")
@@ -82,20 +82,6 @@ def listen_for_command(vosk_asr):
                     introduce(tts, lang_ja)
                     break
                 
-                # オペレーション名のチェックと実行処理
-                elif any(operation in userOrder for operation in valid_operations):
-                    # userOrder と valid_operations を直接比較して最適化
-                    matching_operations = [op for op in userOrder if op in valid_operations]
-                    if matching_operations:
-                        # 一致するオペレーションがある場合、最初のものを処理
-                        operation = matching_operations[0]
-                        if "説明" in userOrder:
-                            print(op_manager.get_operation_info(operation))
-                        else:
-                            print(f"オペレーション '{operation}' が認識されました。実行します。")
-                            # ここにオペレーション実行のコードを追加
-                        break  # 最初に一致したオペレーションを処理した後ループを抜ける
-
                 elif "ネットワーク" and "スキャン" in userOrder:
                     netscan = NetworkScanner()
                     netscan.network_scan(tts, ip_mgr, lang_ja)
@@ -115,27 +101,34 @@ def listen_for_command(vosk_asr):
                     break
 
                 else:
-                    matching_items = set(userOrder) & set(command_dict)
-                    if matching_items:
-                        for matched_key in matching_items:
-                            cmd_name, cmd_arg_flg = cmd_mgr.get_command_values(matched_key)
-                            logging.info(f"コマンド実行: {cmd_name}")
-                            tts.say(f"{cmd_name}を実行します")
-                            if cmd_arg_flg:
-                                matching_items = set(userOrder) & set(target_dict)
-                                if matching_items:
-                                    for matched_key in matching_items:
-                                        target = ip_mgr.get_target(matched_key)
-                                        cmd_mgr.execute_command(matched_key, target['IP'])
-                                        break
-                                else:
-                                    logging.error("不明なターゲット")
-                                    break
-                            else:
-                                cmd_mgr.execute_command(matched_key)
-                                break
-                    else:
-                        logging.error("不明なコマンド")
+                    ipaddress, cmd_name, op_name = None, None, None
+                    for word in userOrder:
+                        if not ipaddress:
+                            result = ip_mgr.get_target_values(word)
+                            if result:
+                                _, ipaddress = result
+                        if not cmd_name:
+                            result = cmd_mgr.get_command_values(word)
+                            if result:
+                                cmd_name, cmd_arg = result
+                        if not op_name:
+                            result = op_mgr.get_operation_values(word)
+                            if result:
+                                op_name, _ = result
+                        if ipaddress and op_name:
+                            break
+                        elif ipaddress and cmd_name:
+                            break
+
+                    if op_name:
+                        if ipaddress == None:
+                            ipaddress = select_target(ip_mgr, tts, vosk_asr, lang_ja)
+                        op_mgr.run_operation(op_name, ipaddress)
+                        break
+                    elif cmd_name:
+                        if cmd_arg and not ipaddress:
+                            ipaddress = select_target(ip_mgr, tts, vosk_asr, lang_ja)
+                        cmd_mgr.execute_command(cmd_name, ipaddress if cmd_arg else None)
                         break
         print("再度ウェイクアップフレーズを待機します。")
     except KeyboardInterrupt:

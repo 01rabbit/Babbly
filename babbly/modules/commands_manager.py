@@ -3,7 +3,6 @@ import subprocess
 import logging
 import json
 
-from ipaddress_manager import IPAddressManager
 
 class CommandManager:
     """コマンドの管理・検索・実行を行うクラス。"""
@@ -78,7 +77,7 @@ class CommandManager:
             search_key (str): 検索するキー（コマンド名、ID、アルファベット、フォネティックコードなど）。
 
         Returns:
-            int: 該当する項目の arg_flg 値。
+            str,int: 該当する項目のコマンド名と arg_flg 値。
         """
         try:
             record = self.search_dict[search_key]

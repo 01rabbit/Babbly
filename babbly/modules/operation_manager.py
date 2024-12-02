@@ -17,21 +17,106 @@ class OperationManager:
     ENTER_KEY = 'C-m'
     LOG_DIR = './logs'  # ログファイルを保存するディレクトリ
 
-    def __init__(self, json_file: str):
+    def __init__(self, json_file_path):
         """
-        初期化メソッド。JSONファイルからオペレーション情報を読み込む。
-        :param json_file: 読み込むJSONファイルのパス
+        初期化メソッド。コマンドデータをロードし補助辞書を作成する。
+
+        Args:
+            json_file_path (str): コマンド定義ファイルのパス。
         """
-        self.operations = self._load_operations(json_file)
-    
-    def _load_operations(self, json_file: str) -> Union[List[dict], None]:
-        """JSONファイルからオペレーションを読み込む"""
+        self.operations_map = self._load_data(json_file_path)
+        self.search_dict = {}
+        self._build_search_dict()
+
+    def _load_data(self, file_path):
+        """JSONファイルからコマンドデータをロードする。
+
+        Args:
+            file_path (str): JSONファイルのパス。
+
+        Returns:
+            dict: コマンドデータ。
+        """
         try:
-            with open(json_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"エラー: JSONファイルの読み込みに失敗しました。{e}")
-            return None
+            with open(file_path, 'r', encoding='utf-8') as file:
+                return json.load(file)
+        except FileNotFoundError:
+            raise Exception(f"JSONファイル '{file_path}' が見つかりません。")
+        except json.JSONDecodeError:
+            raise Exception(f"JSONファイル '{file_path}' の形式が不正です。")
+
+
+    def _build_search_dict(self):
+        """補助辞書を作成する。"""
+        phonetic_codes = {
+            "a": ["alpha", "アルファ"],
+            "b": ["bravo", "ブラボー"],
+            "c": ["charlie", "チャーリー"],
+            "d": ["delta", "デルタ"],
+            "e": ["echo", "エコー"],
+            "f": ["foxtrot", "フォックスロット"],
+            "g": ["golf", "ゴルフ"],
+            "h": ["hotel", "ホテル"],
+            "i": ["india", "インディア"],
+            "j": ["juliet", "ジュリエット"]
+        }
+
+        # 補助辞書作成
+        for key, record in self.operations_map.items():
+            # 通常キーの登録
+            self.search_dict[key] = record
+            self.search_dict[record["ID"]] = record
+            self.search_dict[record["VoiceAlias"]] = record
+
+            # ID をキーにフォネティックコードを登録
+            phonetic_entries = phonetic_codes.get(record["ID"])
+            if phonetic_entries:
+                for code in phonetic_entries:
+                    self.search_dict[code.lower()] = record  # 小文字で登録
+
+
+    def get_search_dict(self):
+        return self.search_dict
+
+
+    def get_operation_values(self, search_key):
+        """
+        指定されたキー（コマンド名、ID、アルファベット、フォネティックコード）に対応する arg_flg の値を返す。
+
+        Args:
+            search_key (str): 検索するキー（コマンド名、ID、アルファベット、フォネティックコードなど）。
+
+        Returns:
+            str: 該当する項目のオペレーション名と説明
+        """
+        try:
+            record = self.search_dict[search_key]
+            return record["VoiceAlias"], record["Info"]
+        except KeyError:
+            return None,None
+
+
+    def display_all_operations(self):
+        """
+        すべてのオペレーション情報を表示する。
+
+        Returns:
+            list: すべてのオペレーション情報を含む文字列のリスト。
+        """
+        operation_list = [
+            f"{key}. {record['ID']}: {record['VoiceAlias']} {record['Info']}"
+            for key, record in self.operations_map.items()
+        ]
+
+        # 表示
+        for operation in operation_list:
+            print(operation)
+
+        return operation_list
+
+
+###### ここから下　要修正 #########
+
 
     def _execute_commands(self, commands: List[str], target_ip: Optional[str] = None, tmux_window_name: Optional[str] = None):
         """
@@ -89,27 +174,27 @@ class OperationManager:
         except FileNotFoundError:
             print(f"ファイル '{file_path}' が見つかりません。")
 
-    def get_operation_info(self, voice_alias: str) -> str:
-        """
-        指定されたVoiceAliasに対応するオペレーションの説明(info)を返す。
-        :param voice_alias: 説明を取得したいオペレーションの識別子
-        :return: オペレーションの説明(info)。該当がない場合はエラーメッセージ。
-        """
-        operation = self._find_operation(voice_alias)
-        if not operation:
-            return f"オペレーション '{voice_alias}' が見つかりません。"
-        return operation.get('info', '説明がありません。')
+    # def get_operation_info(self, voice_alias: str) -> str:
+    #     """
+    #     指定されたVoiceAliasに対応するオペレーションの説明(info)を返す。
+    #     :param voice_alias: 説明を取得したいオペレーションの識別子
+    #     :return: オペレーションの説明(info)。該当がない場合はエラーメッセージ。
+    #     """
+    #     operation = self._find_operation(voice_alias)
+    #     if not operation:
+    #         return f"オペレーション '{voice_alias}' が見つかりません。"
+    #     return operation.get('info', '説明がありません。')
 
-    def get_operation_names(self) -> List[str]:
-        """
-        sop.jsonに登録されているすべてのオペレーション名を返す。
-        :return: list, オペレーション名のリスト
-        """
-        return [operation['VoiceAlias'] for operation in self.operations] if self.operations else []
+    # def get_operation_names(self) -> List[str]:
+    #     """
+    #     sop.jsonに登録されているすべてのオペレーション名を返す。
+    #     :return: list, オペレーション名のリスト
+    #     """
+    #     return [operation['VoiceAlias'] for operation in self.operations] if self.operations else []
 
-    def _find_operation(self, voice_alias: str) -> Optional[dict]:
-        """VoiceAliasに対応するオペレーションを検索して返す。見つからない場合はNone"""
-        return next((op for op in self.operations if op['VoiceAlias'] == voice_alias), None)
+    # def _find_operation(self, voice_alias: str) -> Optional[dict]:
+    #     """VoiceAliasに対応するオペレーションを検索して返す。見つからない場合はNone"""
+    #     return next((op for op in self.operations if op['VoiceAlias'] == voice_alias), None)
 
 
 if __name__ == "__main__":

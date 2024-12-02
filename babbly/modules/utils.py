@@ -114,8 +114,7 @@ def select_target(ip_mgr, tts, vosk_asr, lang_ja):
         target_name = get_asr_result_en(vosk_asr)
         print(f"recognized text:  {target_name}")
 
-    target = ip_mgr.get_target(target_name)
-    ipaddress = target['IP']
+    _,ipaddress = ip_mgr.find_target_ip(target_name)
     return ipaddress
 
 def introduce(tts, lang_ja):

@@ -15,7 +15,6 @@ class IPAddressManager:
         self._build_search_dict()
 
 
-
     def _load_data(self, file_path):
         """JSONファイルからコマンドデータをロードする。
 
@@ -62,11 +61,6 @@ class IPAddressManager:
                 for code in phonetic_entries:
                     self.search_dict[code.lower()] = record  # 小文字で登録
 
-    def get_target(self, input_text):
-        """
-        入力値に対応するターゲット情報を返す。
-        """
-        return self.search_dict.get(input_text.strip(), None)
 
     # def save_targets(self):
     #     """
@@ -116,12 +110,29 @@ class IPAddressManager:
         """
         # messageの各要素をチェック
         for item in message:
-            record = self.get_target(item)
+            record = self.search_dict[item]
             if record['IP']:
                 # 一致する名前とIPアドレスを返す
                 return record['VoiceAlias'], record['IP']
         # 一致するものがない場合
         return None, None
+
+
+    def get_target_values(self, search_key):
+        """
+        指定されたキー（ターゲット名、ID、アルファベット、フォネティックコード）に対応する arg_flg の値を返す。
+
+        Args:
+            search_key (str): 検索するキー（ターゲット名、ID、アルファベット、フォネティックコードなど）。
+
+        Returns:
+            str: 該当する項目のターゲット名と IPアドレス
+        """
+        try:
+            record = self.search_dict[search_key]
+            return record["VoiceAlias"], record["IP"]
+        except KeyError:
+            return None,None
 
 
     def display_all_targets(self):
@@ -205,8 +216,8 @@ if __name__ == "__main__":
     # IPAddressManagerのインスタンスを作成
     manager = IPAddressManager("babbly/ja/targets.json")
 
-    target = manager.get_target("アルファ")
-    print(target['IP'])
+    targetname, targetip = manager.get_target_values("ターゲットブラボー")
+    print(targetip)
 
 
     # すべてのターゲットを表示
