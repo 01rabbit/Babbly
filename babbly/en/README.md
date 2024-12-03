@@ -51,11 +51,11 @@ Babbly eliminates the need for online connections or data dependence, providing 
 
 ## Setup
 
-1. Install to Espeak.  
+1. Install to `libttspico-utils`,`alsa-utils`.  
 
    ``` bash
    sudo apt update
-   sudo apt install espeak
+   sudo apt install libttspico-utils alsa-utils
    ```
 
 2. Download vosk model  
@@ -64,6 +64,8 @@ Babbly eliminates the need for online connections or data dependence, providing 
    | ---- | ---- |---- | ---- |---- |
    | [vosk-model-small-en-us-0.15](https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip) | 40M | 9.85 (librispeech test-clean) 10.38 (tedlium) | Lightweight wideband model for Android and RPi| Apache 2.0 |
    | [vosk-model-en-us-0.22](https://alphacephei.com/vosk/models/vosk-model-en-us-0.22.zip) | 1.8G | 5.69 (librispeech test-clean) 6.05 (tedlium) 29.78(callcenter) | Accurate generic US English model| Apache 2.0 |
+
+   *The Vosk model works fine even with the small version.*
 
 3. Rename the downloaded Vosk model to `model` and place it in the `Babbly/babbly/en/` directory.  
 

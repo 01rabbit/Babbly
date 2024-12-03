@@ -1,7 +1,7 @@
 # config_ja.yaml
-WAKEUP_PHRASE: "バブリー"
+WAKEUP_PHRASE: "プログラム"
 EXIT_PHRASE: "終了"
-COMMANDS_PATH: "babbly/ja/commands.txt"
+COMMANDS_PATH: "babbly/ja/commands.json"
 TARGETS_PATH: "babbly/ja/targets.json"
 SOP_PATH: "babbly/ja/sop.json"
 MODEL_PATH: "babbly/ja/model"

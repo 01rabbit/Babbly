@@ -56,7 +56,36 @@ class NetworkScanner:
         except subprocess.CalledProcessError as e:
             logging.error("Error running vulnerability scan: %s", e)
 
-    def run(self):
+    def network_scan(self, tts, ip_mgr, lang_ja):
+        local_ip, netmask = self.get_local_ip_and_netmask()
+        if not local_ip or not netmask:
+            logging.error("Could not retrieve local IP or netmask.")
+            return
+
+        network = self.get_network_address(local_ip, netmask)
+
+        if lang_ja:
+            print("ネットワークをスキャン")
+            tts.say("ネットワークをスキャンします")
+        else:
+            print("Scan the network")
+            tts.say("Scanning the network")
+
+        discovered_hosts = self.discover_hosts(network)
+
+        for host, status in discovered_hosts:
+            logging.info(f"Host: {host}, Status: {status}")
+        if lang_ja:
+            print(f"{str(len(discovered_hosts))}個のホストを発見")
+            tts.say(f"{str(len(discovered_hosts))}個のホストを発見")
+        else:
+            print(f"{str(len(discovered_hosts))} hosts found")
+            tts.say(f"{str(len(discovered_hosts))} hosts found")
+        # discovered_hostsからIPアドレスを抽出
+        ip_addresses = [host[0] for host in discovered_hosts]
+        ip_mgr.register_ip_addresses(ip_addresses, True)
+
+    def main(self):
         local_ip, netmask = self.get_local_ip_and_netmask()
         if not local_ip or not netmask:
             logging.error("Could not retrieve local IP or netmask.")
@@ -84,4 +113,4 @@ class NetworkScanner:
 
 if __name__ == "__main__":
     scanner = NetworkScanner()
-    scanner.run()
+    scanner.main()
