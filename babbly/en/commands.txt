@@ -1,6 +1,0 @@
-# Command invocation phrase, Command, Use IP address as an argument
-test,ls,0
-program,pwd,0
-scan,id,0
-check,ping -c 1 {target_ip},1
-nmap,nmap -oX {target_ip}_log.xml {target_ip},1

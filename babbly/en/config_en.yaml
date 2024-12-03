@@ -1,6 +1,6 @@
 WAKEUP_PHRASE: "program"
 EXIT_PHRASE: "exit"
-COMMANDS_PATH: "babbly/en/commands.txt"
+COMMANDS_PATH: "babbly/en/commands.json"
 TARGETS_PATH: "babbly/en/targets.json"
 SOP_PATH: "babbly/en/sop.json"
 MODEL_PATH: "babbly/en/model"

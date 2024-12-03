@@ -1,0 +1,7 @@
+{
+    "1": {"ID": "a", "VoiceAlias": "test", "Command": "ls", "Arg_flg":0},
+    "2": {"ID": "b", "VoiceAlias": "program", "Command": "pwd", "Arg_flg":0},
+    "3": {"ID": "c", "VoiceAlias": "scan", "Command": "id", "Arg_flg":0},
+    "4": {"ID": "d", "VoiceAlias": "check", "Command": "ping -c 1 {target_ip}", "Arg_flg":1},
+    "5": {"ID": "e", "VoiceAlias": "nmap", "Command": "nmap -oX {target_ip}_log.xml {target_ip}", "Arg_flg":1}
+}
