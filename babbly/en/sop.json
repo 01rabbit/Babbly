@@ -1,12 +1,5 @@
-[
-    {
-        "VoiceAlias": "operation alpha",
-        "info": "This operation is Alpha... description",
-        "file": "opa.lst"
-    },
-    {
-        "VoiceAlias": "operation bravo",
-        "info": "This operation is Bravo... description",
-        "file": "opb.lst"
-    }
-]
+{
+    "1": {"ID": "a", "VoiceAlias": "operation alpha", "Info": "This operation is Alpha... description", "File": "opa.lst"},
+    "2": {"ID": "b", "VoiceAlias": "operation bravo", "Info": "This operation is Bravo... description", "File": "opb.lst"}
+}
+
