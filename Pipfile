@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 vosk = "*"
+faster-whisper = "*"
 numpy = "*"
 soundcard = "*"
 sounddevice = "*"
@@ -24,5 +25,6 @@ pyfiglet = "*"
 termcolor = "*"
 
 [dev-packages]
+pytest = "*"
 
 [requires]
