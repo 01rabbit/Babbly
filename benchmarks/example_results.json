@@ -1,0 +1,9 @@
+[
+  {
+    "id": "scan-001",
+    "recognized_text": "ネットワークをスキャンして",
+    "latency_ms": 0.0,
+    "backend": "example",
+    "model": "replace-me"
+  }
+]
