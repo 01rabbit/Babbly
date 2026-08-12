@@ -3,14 +3,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
-
-DEFAULT_ALIASES: Dict[str, str] = {
-    "シールト": "シールド",
-    "シールど": "シールド",
-    "エッヂ": "エッジ",
-    "スキャンニング": "スキャン",
-    "ネットワークスキャン": "ネットワークをスキャン",
-}
+from babbly.nlu.vocabulary import build_aliases
 
 
 def _basic_normalize(text: str) -> str:
@@ -21,12 +14,9 @@ def _basic_normalize(text: str) -> str:
 
 
 def normalize_japanese(text: str, aliases: Optional[Dict[str, str]] = None) -> str:
-    """Normalize ASR output without depending on tokenizer whitespace.
-
-    The normalized form is intended for intent matching, not for display.
-    """
+    """Normalize ASR output without depending on tokenizer whitespace."""
     value = _basic_normalize(text)
-    mapping = dict(DEFAULT_ALIASES)
+    mapping = build_aliases("core")
     if aliases:
         mapping.update(aliases)
     for source, target in mapping.items():
@@ -42,11 +32,7 @@ class IntentResult:
 
 
 class IntentResolver:
-    """Small deterministic resolver for command routing.
-
-    AI/LLM layers may suggest candidates later, but executable intents should
-    continue through this explicit resolver/policy boundary.
-    """
+    """Deterministic resolver for executable command routing."""
 
     RULES: Tuple[Tuple[str, Tuple[Tuple[str, ...], ...]], ...] = (
         ("system.exit", (("終了",), ("システム", "終了"))),
@@ -56,8 +42,11 @@ class IntentResolver:
         ("command.mode", (("コマンド",),)),
     )
 
+    def __init__(self, aliases: Optional[Dict[str, str]] = None):
+        self.aliases = aliases or build_aliases("core")
+
     def resolve(self, text: str) -> IntentResult:
-        normalized = normalize_japanese(text)
+        normalized = normalize_japanese(text, self.aliases)
         for intent, alternatives in self.RULES:
             for required_terms in alternatives:
                 if all(_basic_normalize(term) in normalized for term in required_terms):
