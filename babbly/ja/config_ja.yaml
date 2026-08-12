@@ -5,6 +5,10 @@ COMMANDS_PATH: "babbly/ja/commands.json"
 TARGETS_PATH: "babbly/ja/targets.json"
 SOP_PATH: "babbly/ja/sop.json"
 
+# Set true while tuning voice recognition. Known commands are resolved and
+# confirmed, but executable actions are suppressed.
+DRY_RUN: false
+
 # Offline ASR backend. Keep "vosk" for compatibility, or switch to
 # "faster-whisper" after provisioning the model locally.
 ASR_BACKEND: "vosk"
