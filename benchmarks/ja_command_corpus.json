@@ -45,8 +45,18 @@
     "expected_intent": "unknown"
   },
   {
+    "id": "unknown-002",
+    "utterance": "あれをやって",
+    "expected_intent": "unknown"
+  },
+  {
     "id": "azazel-001",
     "utterance": "アザゼルエッジのシールドを確認",
+    "expected_intent": "unknown"
+  },
+  {
+    "id": "azazel-002",
+    "utterance": "アザセルガジェットの状態を確認",
     "expected_intent": "unknown"
   }
 ]
