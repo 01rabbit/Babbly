@@ -12,39 +12,61 @@ from babbly.modules.network_scanner import NetworkScanner
 from babbly.modules.operation_manager import OperationManager
 from babbly.modules.utils import analyze_text, assist_command_mode, introduce, load_config, select_target
 from babbly.nlu.japanese import IntentResolver, normalize_japanese
+from babbly.nlu.policy import Decision, IntentPolicy
+from babbly.nlu.vocabulary import build_aliases
 
 
 tts = Japanese_TTS()
 lang_ja = 1
-intent_resolver = IntentResolver()
 
 
 def set_globals(config):
     global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH
+    global intent_resolver, intent_policy, domain_aliases
     WAKEUP_PHRASE = config.get("WAKEUP_PHRASE")
     EXIT_PHRASE = config.get("EXIT_PHRASE")
     COMMANDS_PATH = config.get("COMMANDS_PATH")
     TARGETS_PATH = config.get("TARGETS_PATH")
     SOP_PATH = config.get("SOP_PATH")
 
+    packs = config.get("DOMAIN_VOCABULARY", ["core", "kali"])
+    domain_aliases = build_aliases(*packs)
+    intent_resolver = IntentResolver(domain_aliases)
+    intent_policy = IntentPolicy(
+        execute_threshold=float(config.get("INTENT_EXECUTE_THRESHOLD", 0.90)),
+        clarify_threshold=float(config.get("INTENT_CLARIFY_THRESHOLD", 0.60)),
+    )
 
-def listen_text(asr):
+
+def listen_result(asr):
     result = asr.listen()
     if result.is_empty:
-        return ""
+        return result
     confidence = "unknown" if result.confidence is None else f"{result.confidence:.2f}"
     logging.info("ASR backend=%s confidence=%s text=%s", result.backend, confidence, result.text)
-    return result.text
+    return result
+
+
+def ask_confirmation(asr, prompt):
+    tts.say(prompt + "。よろしければ、はい。中止する場合は、いいえ、と答えてください")
+    result = listen_result(asr)
+    normalized = normalize_japanese(result.text, domain_aliases)
+    if any(token in normalized for token in ("はい", "実行", "お願いします", "よし")):
+        return True
+    if any(token in normalized for token in ("いいえ", "中止", "やめ", "キャンセル")):
+        return False
+    tts.say("確認できなかったため実行しません")
+    return False
 
 
 def listen_for_wakeup_phrase(asr):
     try:
         while True:
-            recog_text = listen_text(asr)
-            if not recog_text:
+            result = listen_result(asr)
+            if result.is_empty:
                 continue
-            print(f"認識テキスト: {recog_text}")
-            if normalize_japanese(WAKEUP_PHRASE) in normalize_japanese(recog_text):
+            print(f"認識テキスト: {result.text}")
+            if normalize_japanese(WAKEUP_PHRASE, domain_aliases) in normalize_japanese(result.text, domain_aliases):
                 print("ウェイクアップフレーズ認識。次の入力を待機します。")
                 tts.say("はい、ボス")
                 listen_for_command(asr)
@@ -65,20 +87,41 @@ def listen_for_command(asr):
         tts.say("指示をどうぞ")
 
         while True:
-            recog_text = listen_text(asr)
-            if not recog_text:
+            asr_result = listen_result(asr)
+            if asr_result.is_empty:
                 continue
 
+            recog_text = asr_result.text
             print(f"認識テキスト: {recog_text}")
             intent = intent_resolver.resolve(recog_text)
             normalized = intent.normalized_text
             user_order = analyze_text(normalized)
-            logging.info("intent=%s confidence=%.2f normalized=%s", intent.name, intent.confidence, normalized)
+            policy = intent_policy.evaluate(intent, asr_result.confidence)
+            logging.info(
+                "intent=%s intent_confidence=%.2f decision=%s reason=%s normalized=%s",
+                intent.name,
+                intent.confidence,
+                policy.decision.value,
+                policy.reason,
+                normalized,
+            )
 
-            if intent.name == "system.exit" or normalize_japanese(EXIT_PHRASE) in normalized:
+            if intent.name == "system.exit" or normalize_japanese(EXIT_PHRASE, domain_aliases) in normalized:
+                if policy.decision == Decision.REJECT:
+                    tts.say("終了指示を確認できませんでした")
+                    continue
                 print("終了フレーズ認識。処理を終了します。")
                 tts.say("システムを終了します。お疲れ様でした。")
                 raise SystemExit(0)
+
+            if intent.name != "unknown" and policy.decision == Decision.CLARIFY:
+                if not ask_confirmation(asr, f"{recog_text}、という指示でよろしいですか"):
+                    continue
+                policy = type(policy)(Decision.EXECUTE, "operator confirmed")
+
+            if intent.name != "unknown" and policy.decision == Decision.REJECT:
+                tts.say("認識の確信度が不足しています。もう一度お願いします")
+                continue
 
             if intent.name == "system.introduce":
                 introduce(tts, lang_ja)
@@ -121,12 +164,16 @@ def listen_for_command(asr):
                     break
 
             if op_name:
+                if not ask_confirmation(asr, f"登録済みオペレーション {op_name} を実行します"):
+                    continue
                 if ipaddress is None:
                     ipaddress = select_target(ip_mgr, tts, asr, lang_ja)
                 op_mgr.run_operation(op_name, ipaddress)
                 break
 
             if cmd_name:
+                if not ask_confirmation(asr, f"登録済みコマンド {cmd_name} を実行します"):
+                    continue
                 if cmd_arg and not ipaddress:
                     ipaddress = select_target(ip_mgr, tts, asr, lang_ja)
                 cmd_mgr.execute_command(cmd_name, ipaddress if cmd_arg else None)
