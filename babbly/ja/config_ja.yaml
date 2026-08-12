@@ -11,6 +11,14 @@ ASR_BACKEND: "vosk"
 ASR_LANGUAGE: "ja"
 MODEL_PATH: "babbly/ja/model"
 
+# Intent routing. Unknown or low-confidence speech fails closed.
+INTENT_EXECUTE_THRESHOLD: 0.90
+INTENT_CLARIFY_THRESHOLD: 0.60
+DOMAIN_VOCABULARY:
+  - core
+  - kali
+  - azazel
+
 # faster-whisper settings. WHISPER_MODEL may be a model name when initially
 # provisioning, or a local model directory for fully disconnected operation.
 WHISPER_MODEL: "small"
