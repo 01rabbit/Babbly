@@ -12,6 +12,7 @@ Babbly now treats speech recognition as a replaceable backend instead of couplin
 - keep executable command routing deterministic and fail closed when intent is unknown
 - require clarification or rejection when recognition confidence is insufficient
 - keep Kali and Azazel terminology in replaceable domain vocabulary packs
+- provide a safe dry-run path for field tuning
 
 ## Backend selection
 
@@ -77,6 +78,26 @@ DOMAIN_VOCABULARY:
 
 The first packs normalize terms such as Nmap pronunciation variants and Azazel component/mode names. They are correction dictionaries, not action authority.
 
+## Dry-run mode
+
+Set:
+
+```yaml
+DRY_RUN: true
+```
+
+while tuning speech recognition. Babbly will still recognize the wake phrase, resolve intents, apply confidence policy, and perform confirmation dialogue, but executable network scans, command mode, commands, and SOP operations are suppressed.
+
+## Benchmarking
+
+`benchmarks/ja_command_corpus.json` provides the first fixed Japanese command corpus. Backend results can be evaluated with:
+
+```bash
+python tools/evaluate_asr_results.py results.json
+```
+
+The evaluator reports normalized transcript exact rate, task-level intent accuracy, false-execution rate, and mean latency. Pi 5 testing should additionally record CPU, memory, temperature, and model load time. See `benchmarks/README.md`.
+
 ## Safety rule
 
 A neural ASR or future local LLM may improve recognition or propose an intent, but it does not directly execute arbitrary shell commands. Executable operations continue through registered commands/SOPs and explicit routing logic.
@@ -87,9 +108,9 @@ A lightweight GitHub Actions workflow runs the deterministic NLU, confidence-pol
 
 ## Next steps
 
-1. benchmark Vosk vs faster-whisper on Raspberry Pi 5 with a fixed Japanese command corpus
-2. record CER/WER plus task-level intent accuracy, clarification rate, false-execution rate, latency, CPU, and RAM
-3. add a low-power wake-word/KWS backend so full ASR does not run continuously while idle
-4. add a structured Situation Model and adapter contract for generic tools and Azazel
-5. evaluate sherpa-onnx/SenseVoice as an additional streaming ARM backend
-6. add replayable recorded-audio regression fixtures after licensing/privacy-safe samples are available
+1. record privacy-safe local WAV fixtures for the benchmark corpus
+2. benchmark Vosk vs faster-whisper on Raspberry Pi 5
+3. record task-level intent accuracy, clarification rate, false-execution rate, latency, CPU, RAM, and temperature
+4. add a low-power wake-word/KWS backend so full ASR does not run continuously while idle
+5. add a structured Situation Model and adapter contract for generic tools and Azazel
+6. evaluate sherpa-onnx/SenseVoice as an additional streaming ARM backend
