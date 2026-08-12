@@ -1,0 +1,52 @@
+[
+  {
+    "id": "wake-001",
+    "utterance": "プログラム",
+    "expected_intent": "wake"
+  },
+  {
+    "id": "scan-001",
+    "utterance": "ネットワークをスキャンして",
+    "expected_intent": "network.scan"
+  },
+  {
+    "id": "scan-002",
+    "utterance": "周辺をスキャンして",
+    "expected_intent": "network.scan"
+  },
+  {
+    "id": "target-001",
+    "utterance": "ターゲットを表示して",
+    "expected_intent": "target.show"
+  },
+  {
+    "id": "target-002",
+    "utterance": "ターゲットを確認して",
+    "expected_intent": "target.show"
+  },
+  {
+    "id": "intro-001",
+    "utterance": "自己紹介して",
+    "expected_intent": "system.introduce"
+  },
+  {
+    "id": "command-001",
+    "utterance": "コマンドを教えて",
+    "expected_intent": "command.mode"
+  },
+  {
+    "id": "exit-001",
+    "utterance": "終了",
+    "expected_intent": "system.exit"
+  },
+  {
+    "id": "unknown-001",
+    "utterance": "なんとなくいい感じにして",
+    "expected_intent": "unknown"
+  },
+  {
+    "id": "azazel-001",
+    "utterance": "アザゼルエッジのシールドを確認",
+    "expected_intent": "unknown"
+  }
+]
