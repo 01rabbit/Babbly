@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 
 DEFAULT_ALIASES: Dict[str, str] = {
@@ -13,20 +13,24 @@ DEFAULT_ALIASES: Dict[str, str] = {
 }
 
 
+def _basic_normalize(text: str) -> str:
+    value = unicodedata.normalize("NFKC", text or "").strip().lower()
+    value = re.sub(r"[\s\u3000]+", "", value)
+    value = re.sub(r"[、。,.!?！？・:：;；\"'「」『』（）()\[\]{}]", "", value)
+    return value
+
+
 def normalize_japanese(text: str, aliases: Optional[Dict[str, str]] = None) -> str:
     """Normalize ASR output without depending on tokenizer whitespace.
 
     The normalized form is intended for intent matching, not for display.
     """
-    value = unicodedata.normalize("NFKC", text or "").strip().lower()
-    value = re.sub(r"[\s\u3000]+", "", value)
-    value = re.sub(r"[、。,.!?！？・:：;；\"'「」『』（）()\[\]{}]", "", value)
-
+    value = _basic_normalize(text)
     mapping = dict(DEFAULT_ALIASES)
     if aliases:
         mapping.update(aliases)
     for source, target in mapping.items():
-        value = value.replace(normalize_japanese(source, {}) if source != target else source, target)
+        value = value.replace(_basic_normalize(source), _basic_normalize(target))
     return value
 
 
@@ -38,7 +42,7 @@ class IntentResult:
 
 
 class IntentResolver:
-    """Small deterministic resolver for safety-critical command routing.
+    """Small deterministic resolver for command routing.
 
     AI/LLM layers may suggest candidates later, but executable intents should
     continue through this explicit resolver/policy boundary.
@@ -56,7 +60,7 @@ class IntentResolver:
         normalized = normalize_japanese(text)
         for intent, alternatives in self.RULES:
             for required_terms in alternatives:
-                if all(normalize_japanese(term) in normalized for term in required_terms):
+                if all(_basic_normalize(term) in normalized for term in required_terms):
                     confidence = 0.98 if len(required_terms) > 1 else 0.90
                     return IntentResult(intent, confidence, normalized)
         return IntentResult("unknown", 0.0, normalized)
