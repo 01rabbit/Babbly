@@ -1,3 +1,4 @@
+import math
 import time
 from typing import List
 
@@ -75,18 +76,30 @@ class FasterWhisperASR:
             return np.array([], dtype=np.float32)
         return np.concatenate(chunks)
 
+    @staticmethod
+    def _segment_confidence(segments) -> float | None:
+        scores = []
+        for segment in segments:
+            avg_logprob = getattr(segment, "avg_logprob", None)
+            if avg_logprob is not None:
+                scores.append(max(0.0, min(1.0, math.exp(float(avg_logprob)))))
+        if not scores:
+            return None
+        return sum(scores) / len(scores)
+
     def listen(self) -> ASRResult:
         audio = self._capture_utterance()
         if audio.size == 0:
             return ASRResult(text="", confidence=None, backend="faster-whisper")
 
-        segments, info = self.model.transcribe(
+        segments_iter, _info = self.model.transcribe(
             audio,
             language=self.language,
             beam_size=5,
             vad_filter=True,
             condition_on_previous_text=False,
         )
+        segments = list(segments_iter)
         text = "".join(segment.text for segment in segments).strip()
-        probability = getattr(info, "language_probability", None)
-        return ASRResult(text=text, confidence=probability, backend="faster-whisper")
+        confidence = self._segment_confidence(segments)
+        return ASRResult(text=text, confidence=confidence, backend="faster-whisper")
