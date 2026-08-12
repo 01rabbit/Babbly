@@ -21,13 +21,14 @@ lang_ja = 1
 
 
 def set_globals(config):
-    global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH
+    global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH, DRY_RUN
     global intent_resolver, intent_policy, domain_aliases
     WAKEUP_PHRASE = config.get("WAKEUP_PHRASE")
     EXIT_PHRASE = config.get("EXIT_PHRASE")
     COMMANDS_PATH = config.get("COMMANDS_PATH")
     TARGETS_PATH = config.get("TARGETS_PATH")
     SOP_PATH = config.get("SOP_PATH")
+    DRY_RUN = bool(config.get("DRY_RUN", False))
 
     packs = config.get("DOMAIN_VOCABULARY", ["core", "kali"])
     domain_aliases = build_aliases(*packs)
@@ -57,6 +58,15 @@ def ask_confirmation(asr, prompt):
         return False
     tts.say("確認できなかったため実行しません")
     return False
+
+
+def report_dry_run(action, detail=""):
+    message = f"DRY RUN: {action}"
+    if detail:
+        message += f" {detail}"
+    logging.info(message)
+    print(message)
+    tts.say("ドライランのため、実際の処理は実行しません")
 
 
 def listen_for_wakeup_phrase(asr):
@@ -128,7 +138,10 @@ def listen_for_command(asr):
                 break
 
             if intent.name == "network.scan":
-                NetworkScanner().network_scan(tts, ip_mgr, lang_ja)
+                if DRY_RUN:
+                    report_dry_run("network.scan")
+                else:
+                    NetworkScanner().network_scan(tts, ip_mgr, lang_ja)
                 break
 
             if intent.name == "target.show":
@@ -142,7 +155,10 @@ def listen_for_command(asr):
                 break
 
             if intent.name == "command.mode":
-                assist_command_mode(cmd_mgr, ip_mgr, asr, tts, command_dict, lang_ja)
+                if DRY_RUN:
+                    report_dry_run("command.mode")
+                else:
+                    assist_command_mode(cmd_mgr, ip_mgr, asr, tts, command_dict, lang_ja)
                 break
 
             ipaddress = cmd_name = op_name = None
@@ -166,6 +182,9 @@ def listen_for_command(asr):
             if op_name:
                 if not ask_confirmation(asr, f"登録済みオペレーション {op_name} を実行します"):
                     continue
+                if DRY_RUN:
+                    report_dry_run("operation", op_name)
+                    break
                 if ipaddress is None:
                     ipaddress = select_target(ip_mgr, tts, asr, lang_ja)
                 op_mgr.run_operation(op_name, ipaddress)
@@ -174,6 +193,9 @@ def listen_for_command(asr):
             if cmd_name:
                 if not ask_confirmation(asr, f"登録済みコマンド {cmd_name} を実行します"):
                     continue
+                if DRY_RUN:
+                    report_dry_run("command", cmd_name)
+                    break
                 if cmd_arg and not ipaddress:
                     ipaddress = select_target(ip_mgr, tts, asr, lang_ja)
                 cmd_mgr.execute_command(cmd_name, ipaddress if cmd_arg else None)
@@ -195,12 +217,14 @@ def main():
 
     config = load_config("babbly/ja/config_ja.yaml")
     set_globals(config)
-    logging.info("設定読み込み完了")
+    logging.info("設定読み込み完了 dry_run=%s", DRY_RUN)
 
     asr = create_asr(config)
     logging.info("音声認識機能 初期化完了 backend=%s", config.get("ASR_BACKEND", "vosk"))
 
     print("＜音声認識開始 - 入力を待機します＞")
+    if DRY_RUN:
+        print("DRY_RUN is enabled: executable actions will be suppressed")
     tts.say("人工無能システム、バブリー、起動します。")
     while True:
         listen_for_wakeup_phrase(asr)
