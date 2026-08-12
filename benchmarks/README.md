@@ -17,7 +17,7 @@ Keep recordings out of the public repository unless the speaker has explicitly a
 
 ## Backend result format
 
-Store one JSON object per corpus id:
+Start from `example_results.json` and store one JSON object per corpus id:
 
 ```json
 [
