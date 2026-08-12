@@ -1,4 +1,5 @@
 from babbly.nlu.japanese import IntentResolver, normalize_japanese
+from babbly.nlu.vocabulary import build_aliases
 
 
 def test_normalize_ignores_whitespace_and_punctuation():
@@ -26,3 +27,12 @@ def test_unknown_text_fails_closed():
     result = resolver.resolve("なんとなくいい感じにして")
     assert result.name == "unknown"
     assert result.confidence == 0.0
+
+
+def test_azazel_vocabulary_does_not_create_unregistered_action():
+    resolver = IntentResolver(build_aliases("azazel"))
+    result = resolver.resolve("アザセルエッジをシールトにして")
+    assert "azazel" in result.normalized_text
+    assert "edge" in result.normalized_text
+    assert "shield" in result.normalized_text
+    assert result.name == "unknown"
