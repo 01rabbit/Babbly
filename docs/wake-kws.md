@@ -6,6 +6,7 @@ Babbly separates wake detection from command speech recognition so the full ASR 
 
 ```text
 microphone
+  -> VAD (energy)                         # is there speech at all?
   -> WakeDetector
        -> ASR compatibility gate (default)
        -> sherpa-onnx KWS (optional)
@@ -15,7 +16,25 @@ microphone
   -> registered action or read-only query
 ```
 
-Wake detection has deliberately low authority. A trigger may only open the command-listening window. It cannot create an intent, select a target, or execute an action.
+VAD, wake/KWS, and full ASR are kept as separate responsibilities so idle
+operation does not require continuous full ASR inference. Wake detection has
+deliberately low authority. A trigger may only open the command-listening
+window. It cannot create an intent, select a target, or execute an action.
+
+## VAD stage
+
+`babbly/wake/vad.py` provides `EnergyVad`, a low-cost, model-free energy voice
+activity detector. It decides *whether there is speech*, never *what was said*,
+so it can gate expensive full-ASR inference while idle without any model asset,
+and it has no action authority.
+
+`EnergyVad` is a small hysteresis state machine over per-frame RMS:
+`start_frames` consecutive loud frames open an utterance and `hangover_frames`
+consecutive quiet frames close it (a brief dip inside speech does not end the
+utterance). It emits `SPEECH_START` / `SPEECH` / `SPEECH_END` / `SILENCE`
+events. The faster-whisper backend uses it to bound utterance capture, so a
+silent window is never transcribed. Its decision logic is covered by
+deterministic unit tests independent of any microphone or model.
 
 ## Backends
 
