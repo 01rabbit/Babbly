@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import argparse
 import logging
 import sys
 
@@ -13,22 +14,30 @@ from babbly.modules.commands_manager import CommandManager
 from babbly.modules.ipaddress_manager import IPAddressManager
 from babbly.modules.network_scanner import NetworkScanner
 from babbly.modules.operation_manager import OperationManager
-from babbly.modules.utils import analyze_text, assist_command_mode, introduce, load_config, select_target
+from babbly.modules.utils import analyze_text, assist_command_mode, load_config, select_target
 from babbly.nlu.japanese import IntentResolver, normalize_japanese
 from babbly.nlu.policy import Decision, IntentPolicy
 from babbly.nlu.vocabulary import build_aliases
+from babbly.profiles import apply_profile_to_config, list_profiles, load_profile, resolve_profile_name
 from babbly.wake import create_wake_detector
 
 
 tts = Japanese_TTS()
 lang_ja = 1
 situation_engine = SituationEngine()
+agent_profile = None
 
 
 def set_situation_engine(engine):
     """Inject read-only situation adapters without coupling the voice loop to Azazel."""
     global situation_engine
     situation_engine = engine
+
+
+def set_agent_profile(profile):
+    """Set identity/persona metadata; this does not grant execution authority."""
+    global agent_profile
+    agent_profile = profile
 
 
 def set_globals(config):
@@ -48,6 +57,23 @@ def set_globals(config):
         execute_threshold=float(config.get("INTENT_EXECUTE_THRESHOLD", 0.90)),
         clarify_threshold=float(config.get("INTENT_CLARIFY_THRESHOLD", 0.60)),
     )
+
+
+def _persona_value(field, fallback):
+    if agent_profile is None:
+        return fallback
+    value = getattr(agent_profile.persona, field, None)
+    return value or fallback
+
+
+def introduce_agent():
+    print("自己紹介をします")
+    if agent_profile is None:
+        tts.say("私はバブリー。ミスターラビットによって開発された人工無能システムです")
+        tts.say("私の役割は、ペネトレーションテストにおいて、あなたをサポートすることです")
+        return
+    for sentence in agent_profile.persona.introduction:
+        tts.say(sentence)
 
 
 def listen_result(asr):
@@ -109,7 +135,7 @@ def wait_for_wakeup(wake_detector, asr):
                 confidence,
             )
             print(f"ウェイクアップ検知: {result.keyword} ({result.backend})")
-            tts.say("はい、ボス")
+            tts.say(_persona_value("acknowledgement", "はい、ボス"))
             listen_for_command(asr)
     except KeyboardInterrupt:
         print("\nCtrl+Cが押されました。プログラムを終了します。")
@@ -125,7 +151,7 @@ def listen_for_command(asr):
 
     try:
         print(f"コマンドを入力してください（終了するには {EXIT_PHRASE} を言ってください）")
-        tts.say("指示をどうぞ")
+        tts.say(_persona_value("command_prompt", "指示をどうぞ"))
 
         while True:
             asr_result = listen_result(asr)
@@ -152,7 +178,7 @@ def listen_for_command(asr):
                     tts.say("終了指示を確認できませんでした")
                     continue
                 print("終了フレーズ認識。処理を終了します。")
-                tts.say("システムを終了します。お疲れ様でした。")
+                tts.say(_persona_value("shutdown_phrase", "システムを終了します。お疲れ様でした。"))
                 raise SystemExit(0)
 
             if intent.name != "unknown" and policy.decision == Decision.CLARIFY:
@@ -165,7 +191,7 @@ def listen_for_command(asr):
                 continue
 
             if intent.name == "system.introduce":
-                introduce(tts, lang_ja)
+                introduce_agent()
                 break
 
             if intent.name == "situation.report":
@@ -240,7 +266,7 @@ def listen_for_command(asr):
                 cmd_mgr.execute_command(cmd_name, ipaddress if cmd_arg else None)
                 break
 
-            tts.say("指示を特定できませんでした。もう一度お願いします")
+            tts.say(_persona_value("unknown_prompt", "指示を特定できませんでした。もう一度お願いします"))
 
         print("再度ウェイクアップフレーズを待機します。")
     except KeyboardInterrupt:
@@ -249,19 +275,51 @@ def listen_for_command(asr):
         raise SystemExit(0)
 
 
-def main():
-    ascii_art = pyfiglet.figlet_format("Babbly", font="dos_rebel")
-    print(ascii_art)
-    logging.info("プログラム開始")
+def _parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Babbly Japanese offline agent")
+    parser.add_argument(
+        "--profile",
+        help="Agent/environment profile name. Overrides BABBLY_PROFILE and config PROFILE.",
+    )
+    parser.add_argument(
+        "--list-profiles",
+        action="store_true",
+        help="List available local profiles and exit.",
+    )
+    return parser.parse_args(argv)
 
-    config = load_config("babbly/ja/config_ja.yaml")
+
+def main(argv=None):
+    args = _parse_args(argv)
+    base_config = load_config("babbly/ja/config_ja.yaml")
+
+    if args.list_profiles:
+        for name in list_profiles():
+            print(name)
+        return
+
+    profile_name = resolve_profile_name(args.profile, base_config)
+    profile = load_profile(profile_name)
+    config = apply_profile_to_config(base_config, profile)
+    set_agent_profile(profile)
     set_globals(config)
     set_situation_engine(create_situation_engine(config))
+
+    ascii_art = pyfiglet.figlet_format(profile.identity.display_name, font="dos_rebel")
+    print(ascii_art)
+    print(
+        f"profile={profile.id} agent={profile.identity.display_name} "
+        f"wake={', '.join(profile.identity.wake_phrases)} environment={profile.environment.type}"
+    )
+    logging.info("プログラム開始")
 
     asr = create_asr(config)
     wake_detector = create_wake_detector(config, asr, domain_aliases)
     logging.info(
-        "設定読み込み完了 dry_run=%s azazel_edge=%s asr=%s wake=%s",
+        "設定読み込み完了 profile=%s agent=%s persona=%s dry_run=%s azazel_edge=%s asr=%s wake=%s",
+        profile.id,
+        profile.identity.display_name,
+        profile.persona.style,
         DRY_RUN,
         bool(config.get("AZAZEL_EDGE_ENABLED", False)),
         config.get("ASR_BACKEND", "vosk"),
@@ -271,7 +329,7 @@ def main():
     print("＜音声認識開始 - 入力を待機します＞")
     if DRY_RUN:
         print("DRY_RUN is enabled: executable actions will be suppressed")
-    tts.say("人工無能システム、バブリー、起動します。")
+    tts.say(profile.persona.startup_phrase)
     wait_for_wakeup(wake_detector, asr)
 
 
