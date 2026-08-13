@@ -1,6 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 
 @dataclass(frozen=True)
@@ -59,3 +59,45 @@ class SituationSnapshot:
             "observations": [asdict(item) for item in self.observations],
             "recommendations": [asdict(item) for item in self.recommendations],
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SituationSnapshot":
+        snapshot = cls(status=str(payload.get("status") or "unknown"))
+        systems = payload.get("systems") or {}
+        if isinstance(systems, Mapping):
+            snapshot.systems = {str(key): str(value) for key, value in systems.items()}
+
+        observations = payload.get("observations") or []
+        if isinstance(observations, list):
+            for item in observations:
+                if not isinstance(item, Mapping):
+                    continue
+                snapshot.observations.append(
+                    Observation(
+                        source=str(item.get("source") or "unknown"),
+                        category=str(item.get("category") or "unknown"),
+                        summary=str(item.get("summary") or ""),
+                        severity=str(item.get("severity") or "info"),
+                        confidence=item.get("confidence"),
+                        data=dict(item.get("data") or {}),
+                        observed_at=str(item.get("observed_at") or datetime.now(timezone.utc).isoformat()),
+                    )
+                )
+
+        recommendations = payload.get("recommendations") or []
+        if isinstance(recommendations, list):
+            for item in recommendations:
+                if not isinstance(item, Mapping):
+                    continue
+                snapshot.recommendations.append(
+                    Recommendation(
+                        source=str(item.get("source") or "unknown"),
+                        action=str(item.get("action") or ""),
+                        reason=str(item.get("reason") or ""),
+                        priority=int(item.get("priority", 100)),
+                        confidence=item.get("confidence"),
+                        advisory_only=bool(item.get("advisory_only", True)),
+                    )
+                )
+        snapshot.recommendations.sort(key=lambda item: item.priority)
+        return snapshot
