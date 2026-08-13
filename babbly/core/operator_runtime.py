@@ -15,9 +15,10 @@ from babbly.core.operator_intent import (
 class OperatorIntentRuntime:
     """Shared core path for Voice/TUI/Web/EUD operator intents.
 
-    This initial runtime intentionally owns only read-only intents and DRY_RUN
-    representation of registered operations. Write-capable execution remains
-    outside this contract until the controlled request/approval work in #18.
+    This runtime owns read-only intents and the presentation-neutral request
+    state for registered local operations. It does not accept arbitrary shell
+    strings and it does not replace the registered command/SOP executor.
+    External-system write requests remain out of scope until #18.
     """
 
     READ_ONLY_INTENTS = {"situation.report", "recommendation.explain"}
@@ -119,20 +120,11 @@ class OperatorIntentRuntime:
                 message_code="operation.confirmation_required",
             )
 
-        if not self.dry_run:
-            return OperatorResult(
-                intent_id=intent.intent_id,
-                status="external_authority_required",
-                correlation_id=intent.correlation_id,
-                audit_id=intent.audit_id,
-                confirmation_id=intent.confirmation_id,
-                payload={"operation": operation, "target_ref": intent.target_ref},
-                message_code="operation.write_contract_not_enabled",
-            )
-
+        status = "dry_run" if self.dry_run else "ready_for_registered_executor"
+        code = "operation.dry_run" if self.dry_run else "operation.ready"
         return OperatorResult(
             intent_id=intent.intent_id,
-            status="dry_run",
+            status=status,
             correlation_id=intent.correlation_id,
             audit_id=intent.audit_id,
             confirmation_id=intent.confirmation_id,
@@ -141,7 +133,7 @@ class OperatorIntentRuntime:
                 "target_ref": intent.target_ref,
                 "context_ref": intent.context_ref,
             },
-            message_code="operation.dry_run",
+            message_code=code,
         )
 
     def resolve_pending(self, approved: bool, modality: SourceModality) -> OperatorResult:
