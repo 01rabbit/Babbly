@@ -4,14 +4,17 @@ Babbly development is MacBook-first. Raspberry Pi is a deployment and hardware-v
 
 ## Reference development host
 
-- macOS on Apple Silicon (MacBook Air M2 reference)
+- macOS on Apple Silicon
+- current reference machine: MacBook Pro with M5 Pro
 - Python 3
 - project virtual environment: `.venv`
 - repository-local launcher: `./run_babbly.sh`
 
+The development workflow should remain compatible with Apple Silicon Macs generally, but performance baselines recorded from now on should identify the MacBook Pro M5 Pro as the reference host unless explicitly stated otherwise.
+
 ## Development sequence
 
-1. Implement on the MacBook.
+1. Implement on the MacBook Pro M5 Pro.
 2. Run compile/unit/core tests on the MacBook.
 3. Exercise normalization, intent, policy, Situation Model, adapters, dry-run behavior, and benchmark tooling locally.
 4. Commit and push to GitHub; CI runs on both macOS and Linux.
@@ -52,15 +55,15 @@ The primary development-host profiler is platform-aware:
 
 ```bash
 python tools/capture_dev_benchmark.py \
-  --output results/mac-vosk.json \
-  --label mac-vosk \
+  --output results/mac-m5pro-vosk.json \
+  --label mac-m5pro-vosk \
   --backend-type asr \
   --backend vosk \
   --duration 30 \
   -- python babbly_ja.py
 ```
 
-On macOS it uses `ps` to aggregate CPU and RSS for the Babbly process tree. It does not invent a temperature value: macOS temperature remains `null` unless a future explicitly supported sensor provider is added.
+On macOS it uses `ps` to aggregate CPU and RSS for the Babbly process tree. The benchmark JSON records macOS machine information via `sysctl`, so M5 Pro measurements can be separated from other Apple Silicon results. It does not invent a temperature value: macOS temperature remains `null` unless a future explicitly supported sensor provider is added.
 
 ## Raspberry Pi promotion gate
 
