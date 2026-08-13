@@ -8,7 +8,10 @@ import pyfiglet
 from babbly.adapters.factory import create_situation_engine
 from babbly.asr import create_asr
 from babbly.core.engine import SituationEngine
+from babbly.core.operator_intent import OperatorIntent, SourceModality
+from babbly.core.operator_runtime import OperatorIntentRuntime
 from babbly.core.render import render_recommendation_ja, render_situation_ja
+from babbly.core.situation import SituationSnapshot
 from babbly.ja.japanese_tts import Japanese_TTS
 from babbly.modules.commands_manager import CommandManager
 from babbly.modules.ipaddress_manager import IPAddressManager
@@ -25,13 +28,15 @@ from babbly.wake import create_wake_detector
 tts = Japanese_TTS()
 lang_ja = 1
 situation_engine = SituationEngine()
+operator_runtime = OperatorIntentRuntime(situation_engine)
 agent_profile = None
 
 
 def set_situation_engine(engine):
     """Inject read-only situation adapters without coupling the voice loop to Azazel."""
-    global situation_engine
+    global situation_engine, operator_runtime
     situation_engine = engine
+    operator_runtime.situation_engine = engine
 
 
 def set_agent_profile(profile):
@@ -42,13 +47,14 @@ def set_agent_profile(profile):
 
 def set_globals(config):
     global WAKEUP_PHRASE, EXIT_PHRASE, COMMANDS_PATH, TARGETS_PATH, SOP_PATH, DRY_RUN
-    global intent_resolver, intent_policy, domain_aliases
+    global intent_resolver, intent_policy, domain_aliases, operator_runtime
     WAKEUP_PHRASE = config.get("WAKEUP_PHRASE")
     EXIT_PHRASE = config.get("EXIT_PHRASE")
     COMMANDS_PATH = config.get("COMMANDS_PATH")
     TARGETS_PATH = config.get("TARGETS_PATH")
     SOP_PATH = config.get("SOP_PATH")
     DRY_RUN = bool(config.get("DRY_RUN", False))
+    operator_runtime.dry_run = DRY_RUN
 
     packs = config.get("DOMAIN_VOCABULARY", ["core", "kali"])
     domain_aliases = build_aliases(*packs)
@@ -64,6 +70,17 @@ def _persona_value(field, fallback):
         return fallback
     value = getattr(agent_profile.persona, field, None)
     return value or fallback
+
+
+def _voice_intent(intent_id, *, confidence=None, parameters=None, target_ref=None, context_ref=None):
+    return OperatorIntent(
+        intent_id=intent_id,
+        source_modality=SourceModality.VOICE,
+        confidence=confidence,
+        parameters=parameters or {},
+        target_ref=target_ref,
+        context_ref=context_ref,
+    )
 
 
 def introduce_agent():
@@ -106,15 +123,17 @@ def report_dry_run(action, detail=""):
     tts.say("ドライランのため、実際の処理は実行しません")
 
 
-def speak_situation_report():
-    snapshot = situation_engine.collect()
+def speak_situation_report(confidence=None):
+    result = operator_runtime.submit(_voice_intent("situation.report", confidence=confidence))
+    snapshot = SituationSnapshot.from_dict(result.payload.get("snapshot", {}))
     message = render_situation_ja(snapshot)
     print(message)
     tts.say(message)
 
 
-def speak_recommendation():
-    snapshot = situation_engine.collect()
+def speak_recommendation(confidence=None):
+    result = operator_runtime.submit(_voice_intent("recommendation.explain", confidence=confidence))
+    snapshot = SituationSnapshot.from_dict(result.payload.get("snapshot", {}))
     message = render_recommendation_ja(snapshot)
     print(message)
     tts.say(message)
@@ -195,11 +214,11 @@ def listen_for_command(asr):
                 break
 
             if intent.name == "situation.report":
-                speak_situation_report()
+                speak_situation_report(intent.confidence)
                 break
 
             if intent.name == "recommendation.explain":
-                speak_recommendation()
+                speak_recommendation(intent.confidence)
                 break
 
             if intent.name == "network.scan":
@@ -212,6 +231,7 @@ def listen_for_command(asr):
             if intent.name == "target.show":
                 target_name, target_ip = ip_mgr.find_target_ip(user_order)
                 if target_name:
+                    operator_runtime.context.current_target = target_ip
                     print(f"{target_name}: {target_ip}")
                     tts.say(f"{target_name}: {target_ip}")
                 else:
@@ -245,13 +265,33 @@ def listen_for_command(asr):
                     break
 
             if op_name:
-                if not ask_confirmation(asr, f"登録済みオペレーション {op_name} を実行します"):
+                canonical = _voice_intent(
+                    "operation.run",
+                    confidence=asr_result.confidence,
+                    parameters={"operation": op_name},
+                    target_ref=ipaddress,
+                    context_ref="registered-sop",
+                )
+                pending = operator_runtime.submit(canonical)
+                approved = ask_confirmation(asr, f"登録済みオペレーション {op_name} を実行します")
+                resolved = operator_runtime.resolve_pending(approved, SourceModality.VOICE)
+                logging.info(
+                    "canonical operation status=%s correlation=%s confirmation=%s",
+                    resolved.status,
+                    resolved.correlation_id,
+                    resolved.confirmation_id,
+                )
+                if not approved:
                     continue
                 if DRY_RUN:
                     report_dry_run("operation", op_name)
                     break
+                if resolved.status != "ready_for_registered_executor":
+                    tts.say("オペレーションを実行可能な状態にできませんでした")
+                    continue
                 if ipaddress is None:
                     ipaddress = select_target(ip_mgr, tts, asr, lang_ja)
+                    operator_runtime.context.current_target = ipaddress
                 op_mgr.run_operation(op_name, ipaddress)
                 break
 
