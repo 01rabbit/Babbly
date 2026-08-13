@@ -4,7 +4,10 @@ import sys
 
 import pyfiglet
 
+from babbly.adapters.factory import create_situation_engine
 from babbly.asr import create_asr
+from babbly.core.engine import SituationEngine
+from babbly.core.render import render_recommendation_ja, render_situation_ja
 from babbly.ja.japanese_tts import Japanese_TTS
 from babbly.modules.commands_manager import CommandManager
 from babbly.modules.ipaddress_manager import IPAddressManager
@@ -18,6 +21,13 @@ from babbly.nlu.vocabulary import build_aliases
 
 tts = Japanese_TTS()
 lang_ja = 1
+situation_engine = SituationEngine()
+
+
+def set_situation_engine(engine):
+    """Inject read-only situation adapters without coupling the voice loop to Azazel."""
+    global situation_engine
+    situation_engine = engine
 
 
 def set_globals(config):
@@ -67,6 +77,20 @@ def report_dry_run(action, detail=""):
     logging.info(message)
     print(message)
     tts.say("ドライランのため、実際の処理は実行しません")
+
+
+def speak_situation_report():
+    snapshot = situation_engine.collect()
+    message = render_situation_ja(snapshot)
+    print(message)
+    tts.say(message)
+
+
+def speak_recommendation():
+    snapshot = situation_engine.collect()
+    message = render_recommendation_ja(snapshot)
+    print(message)
+    tts.say(message)
 
 
 def listen_for_wakeup_phrase(asr):
@@ -135,6 +159,14 @@ def listen_for_command(asr):
 
             if intent.name == "system.introduce":
                 introduce(tts, lang_ja)
+                break
+
+            if intent.name == "situation.report":
+                speak_situation_report()
+                break
+
+            if intent.name == "recommendation.explain":
+                speak_recommendation()
                 break
 
             if intent.name == "network.scan":
@@ -217,7 +249,12 @@ def main():
 
     config = load_config("babbly/ja/config_ja.yaml")
     set_globals(config)
-    logging.info("設定読み込み完了 dry_run=%s", DRY_RUN)
+    set_situation_engine(create_situation_engine(config))
+    logging.info(
+        "設定読み込み完了 dry_run=%s azazel_edge=%s",
+        DRY_RUN,
+        bool(config.get("AZAZEL_EDGE_ENABLED", False)),
+    )
 
     asr = create_asr(config)
     logging.info("音声認識機能 初期化完了 backend=%s", config.get("ASR_BACKEND", "vosk"))
