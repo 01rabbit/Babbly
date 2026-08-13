@@ -26,14 +26,19 @@ Implemented on this branch:
 - shared Situation view-model (`babbly.situation-view.v1`) with a compact TUI
   renderer and a responsive Web surface (`python -m babbly.web`) as the first
   EUD prototype; visual actions route through canonical intents only
+- separated speech-entry stages: `EnergyVad` (model-free energy VAD),
+  replaceable wake backends (ASR compatibility gate + optional sherpa-onnx KWS),
+  and full command ASR, so idle operation does not run full ASR continuously
+- offline wake benchmark corpus and FAR/FRR/latency evaluator
+  (`tools/evaluate_wake_results.py`)
 - full tests and GitHub Actions coverage
 
 Not implemented yet:
 
 - write/action request contract
 - autonomous actions from Situation Model
-- low-cost wake-word / keyword-spotting backend
-- Raspberry Pi 5 live ASR/KWS benchmark measurements
+- Raspberry Pi 5 live ASR/KWS field-benchmark measurements (hardware-gated;
+  Mac-side software layer is complete)
 - native Android EUD client
 
 The Azazel integration is intentionally read-only. Edge remains the authority for Azazel actions.

@@ -6,6 +6,7 @@ import numpy as np
 import sounddevice as sd
 
 from babbly.asr.types import ASRResult
+from babbly.wake.vad import EnergyVad, VadEvent
 
 
 class FasterWhisperASR:
@@ -46,8 +47,14 @@ class FasterWhisperASR:
         silent_blocks_required = max(1, int(self.silence_seconds / block_seconds))
         max_blocks = max(1, int(self.max_seconds / block_seconds))
         chunks: List[np.ndarray] = []
-        speech_started = False
-        silent_blocks = 0
+
+        # Utterance boundaries come from the shared energy VAD stage so idle
+        # capture (no speech) never feeds the full ASR model.
+        vad = EnergyVad(
+            rms_threshold=self.rms_threshold,
+            start_frames=1,
+            hangover_frames=silent_blocks_required,
+        )
 
         with sd.InputStream(
             samplerate=self.sample_rate,
@@ -60,17 +67,14 @@ class FasterWhisperASR:
                 mono = np.asarray(data[:, 0], dtype=np.float32)
                 rms = float(np.sqrt(np.mean(np.square(mono)))) if mono.size else 0.0
 
-                if rms >= self.rms_threshold:
-                    speech_started = True
-                    silent_blocks = 0
-                    chunks.append(mono.copy())
-                elif speech_started:
-                    chunks.append(mono.copy())
-                    silent_blocks += 1
-                    if silent_blocks >= silent_blocks_required:
-                        break
-                else:
+                event = vad.observe_rms(rms)
+                if event is VadEvent.SILENCE:
                     time.sleep(0.01)
+                    continue
+
+                chunks.append(mono.copy())
+                if event is VadEvent.SPEECH_END:
+                    break
 
         if not chunks:
             return np.array([], dtype=np.float32)
