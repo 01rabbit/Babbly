@@ -12,6 +12,19 @@ The current next-generation work is evolving Babbly into a reusable **offline vo
 
 現在は次世代化として、Babblyを再利用可能な**オフライン音声エージェント基盤**へ進化させています。従来の決定論的なSOPモデルを維持しつつ、差し替え可能なオフラインASR、日本語正規化、ドメイン語彙、信頼度ベースのIntent判定、明示的な聞き返し、DRY RUN検証を追加する方針です。詳細は [`docs/offline-asr.md`](docs/offline-asr.md) を参照してください。
 
+## Development workflow
+
+Babbly is developed **MacBook-first**. The reference development host is Apple Silicon macOS; Raspberry Pi is the later deployment/hardware-validation target. Core logic, NLU, policy, adapters, dry-run behavior, and development benchmarks should pass on the Mac before Pi-specific audio/resource validation.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+./run_babbly.sh test
+./run_babbly.sh ja
+```
+
+See [`docs/development-macos.md`](docs/development-macos.md) for setup, the Mac-to-Pi promotion gate, and the platform-aware development benchmark flow.
+
 ### [日本語モード](babbly/ja/README.md)
 
 日本語を使用するユーザは、こちらのリンクをご確認ください。
