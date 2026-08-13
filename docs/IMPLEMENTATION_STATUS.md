@@ -14,6 +14,12 @@ Implemented on this branch:
 - short TTL cache to avoid duplicate reads during one collection
 - environment/token-file secret loading; no committed token
 - native Edge compatibility fallback when `status_view` is absent
+- Agent/environment profiles (`generic`, `kali`, `azazel-edge`) that project
+  identity/wake/persona/vocabulary/read-only source but never execution authority
+- canonical operator-intent contract `babbly.operator-intent.v1`
+  (`OperatorIntent`, `OperatorContext`, `OperatorIntentRuntime`) shared by
+  Voice/TUI/Web/EUD for `situation.report`, `recommendation.explain`, and
+  registered `operation.run` confirmation/DRY_RUN state
 - full tests and GitHub Actions coverage
 
 Not implemented yet:
