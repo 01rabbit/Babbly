@@ -15,6 +15,6 @@ def test_azazel_pack_normalizes_product_terms():
     assert "shield" in normalized
 
 
-def test_unknown_pack_is_ignored():
+def test_unknown_pack_is_ignored_but_core_normalization_remains():
     aliases = build_aliases("does-not-exist")
-    assert normalize_japanese("ネットワーク スキャン", aliases) == "ネットワークスキャン"
+    assert normalize_japanese("ネットワーク スキャン", aliases) == "ネットワークをスキャン"
