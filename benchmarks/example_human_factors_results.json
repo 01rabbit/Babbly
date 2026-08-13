@@ -1,0 +1,42 @@
+[
+  {
+    "id": "r-laptop-1", "condition": "laptop_cli", "task_id": "status-check",
+    "completed": true, "completion_time_s": 42.0, "intent_attempts": 3, "intent_correct": 3,
+    "false_executions": 0, "clarifications": 0, "time_to_important_info_s": 18.0,
+    "eyes_on_device_s": 40.0, "hands_on_device_s": 38.0, "workload": 45.0
+  },
+  {
+    "id": "r-laptop-2", "condition": "laptop_cli", "task_id": "confirm-operation",
+    "completed": true, "completion_time_s": 55.0, "intent_attempts": 4, "intent_correct": 4,
+    "false_executions": 0, "clarifications": 1, "time_to_important_info_s": 20.0,
+    "eyes_on_device_s": 52.0, "hands_on_device_s": 50.0, "workload": 52.0
+  },
+  {
+    "id": "r-hybrid-1", "condition": "hybrid_voice", "task_id": "status-check",
+    "completed": true, "completion_time_s": 30.0, "intent_attempts": 2, "intent_correct": 2,
+    "false_executions": 0, "clarifications": 0, "time_to_important_info_s": 8.0,
+    "eyes_on_device_s": 12.0, "hands_on_device_s": 6.0, "mode_switches": 1,
+    "mode_switch_continuity_errors": 0, "workload": 40.0
+  },
+  {
+    "id": "r-hybrid-2", "condition": "hybrid_voice", "task_id": "confirm-operation",
+    "completed": true, "completion_time_s": 44.0, "intent_attempts": 3, "intent_correct": 3,
+    "false_executions": 0, "clarifications": 1, "time_to_important_info_s": 10.0,
+    "eyes_on_device_s": 16.0, "hands_on_device_s": 9.0, "mode_switches": 1,
+    "mode_switch_continuity_errors": 0, "workload": 47.0
+  },
+  {
+    "id": "r-eyesfree-1", "condition": "eyes_free", "task_id": "status-check",
+    "completed": true, "completion_time_s": 34.0, "intent_attempts": 3, "intent_correct": 2,
+    "false_executions": 0, "clarifications": 1, "time_to_important_info_s": 9.0,
+    "eyes_on_device_s": 2.0, "hands_on_device_s": 1.0, "mode_switches": 2,
+    "mode_switch_continuity_errors": 0, "workload": 55.0
+  },
+  {
+    "id": "r-eyesfree-2", "condition": "eyes_free", "task_id": "confirm-operation",
+    "completed": false, "completion_time_s": 60.0, "intent_attempts": 4, "intent_correct": 3,
+    "false_executions": 0, "clarifications": 2, "time_to_important_info_s": 12.0,
+    "eyes_on_device_s": 3.0, "hands_on_device_s": 2.0, "mode_switches": 1,
+    "mode_switch_continuity_errors": 1, "workload": 68.0
+  }
+]

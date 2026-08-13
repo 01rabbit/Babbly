@@ -1,0 +1,26 @@
+[
+  {
+    "task_id": "status-check",
+    "goal": "Determine the current situation status and the highest-priority recommendation.",
+    "equivalent_across_conditions": true,
+    "success_criteria": "Operator correctly reports the status level and the top recommended action.",
+    "important_info": "situation status + top recommendation",
+    "notes": "Measures time-to-important-information and eyes-on-device for a read-only query."
+  },
+  {
+    "task_id": "confirm-operation",
+    "goal": "Bring a registered operation to a pending confirmation and make an explicit approve/deny decision.",
+    "equivalent_across_conditions": true,
+    "success_criteria": "Correct operation reaches confirmation and the intended decision is recorded; no false execution.",
+    "important_info": "pending confirmation target + operation",
+    "notes": "Measures intent accuracy, false-execution rate, and clarification rate under each attention mode."
+  },
+  {
+    "task_id": "mode-switch-continuity",
+    "goal": "Begin a task visually, then continue and complete it eyes-free after switching attention mode.",
+    "equivalent_across_conditions": false,
+    "success_criteria": "Task target, context, and any pending confirmation survive the modality/mode switch.",
+    "important_info": "current target + pending confirmation",
+    "notes": "Babbly conditions only; measures mode-switch continuity errors and hands-on-device time."
+  }
+]
