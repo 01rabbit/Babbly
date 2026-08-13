@@ -20,6 +20,12 @@ Implemented on this branch:
   (`OperatorIntent`, `OperatorContext`, `OperatorIntentRuntime`) shared by
   Voice/TUI/Web/EUD for `situation.report`, `recommendation.explain`, and
   registered `operation.run` confirmation/DRY_RUN state
+- `OperatorAttentionState` (NORMAL/HEADS_UP/CRITICAL) presentation policy with
+  operator-only, auditable transitions and `attention.set` / `attention.status`
+  intents; authority is identical in every mode
+- shared Situation view-model (`babbly.situation-view.v1`) with a compact TUI
+  renderer and a responsive Web surface (`python -m babbly.web`) as the first
+  EUD prototype; visual actions route through canonical intents only
 - full tests and GitHub Actions coverage
 
 Not implemented yet:
@@ -28,6 +34,6 @@ Not implemented yet:
 - autonomous actions from Situation Model
 - low-cost wake-word / keyword-spotting backend
 - Raspberry Pi 5 live ASR/KWS benchmark measurements
-- TUI/Web situation rendering
+- native Android EUD client
 
 The Azazel integration is intentionally read-only. Edge remains the authority for Azazel actions.
