@@ -4,10 +4,12 @@ from babbly.wake.sherpa_onnx_backend import SherpaOnnxWakeDetector
 
 def create_wake_detector(config, asr, aliases=None):
     backend = str(config.get("WAKE_BACKEND", "asr")).strip().lower()
-    phrase = str(config.get("WAKEUP_PHRASE") or "").strip()
+    phrases = config.get("WAKEUP_PHRASES")
+    if not isinstance(phrases, list) or not phrases:
+        phrases = [str(config.get("WAKEUP_PHRASE") or "").strip()]
 
     if backend in {"asr", "legacy"}:
-        return ASRWakeDetector(asr, phrase, aliases)
+        return ASRWakeDetector(asr, phrases, aliases)
 
     if backend in {"sherpa-onnx", "sherpa", "kws"}:
         return SherpaOnnxWakeDetector(
