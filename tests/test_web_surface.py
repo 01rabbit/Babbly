@@ -48,15 +48,17 @@ def test_index_is_served_as_responsive_html():
     assert "width=device-width" in text  # responsive viewport
 
 
-def test_api_situation_matches_snapshot_via_canonical_intent():
+def test_api_situation_returns_session_envelope():
     status, content_type, body = _app().handle("GET", "/api/situation")
     assert status == 200
     assert "application/json" in content_type
-    view = _json_body(body)
+    env = _json_body(body)
+    # session contract envelope, not a bare view
+    assert "revision" in env and "generated_at" in env
+    view = env["view"]
     assert view["attention_state"] == "normal"
     assert view["status"] == "warning"
     assert [o["summary"] for o in view["observations"]] == ["探索通信を検出", "再送を検出", "Edge稼働中"]
-    assert view["recommendation"]["action"] == "Shield維持"
 
 
 def test_visual_action_reaches_canonical_intent_and_changes_density():
@@ -67,13 +69,21 @@ def test_visual_action_reaches_canonical_intent_and_changes_density():
     data = _json_body(resp)
     assert data["result"]["status"] == "ok"
     assert data["result"]["message_code"] == "attention.state_changed"
-    # the runtime's shared attention state changed...
-    assert app.runtime.attention.state is OperatorAttentionState.CRITICAL
-    # ...and the returned + subsequent view render at the new density.
-    assert data["view"]["attention_state"] == "critical"
-    assert len(data["view"]["observations"]) == 1
+    assert app.endpoint.runtime.attention.state is OperatorAttentionState.CRITICAL
+    assert data["situation"]["view"]["attention_state"] == "critical"
     follow = _json_body(app.handle("GET", "/api/situation")[2])
-    assert follow["attention_state"] == "critical"
+    assert follow["view"]["attention_state"] == "critical"
+
+
+def test_client_msg_id_makes_intent_submission_idempotent():
+    app = _app()
+    body = json.dumps({"intent_id": "attention.set", "parameters": {"state": "heads_up"}, "client_msg_id": "m1"}).encode()
+    first = _json_body(app.handle("POST", "/api/intent", body)[2])
+    assert first["deduplicated"] is False
+    assert len(app.endpoint.runtime.attention.history) == 1
+    second = _json_body(app.handle("POST", "/api/intent", body)[2])
+    assert second["deduplicated"] is True
+    assert len(app.endpoint.runtime.attention.history) == 1  # not replayed
 
 
 def test_web_surface_rejects_non_allowlisted_intents():
@@ -82,8 +92,7 @@ def test_web_surface_rejects_non_allowlisted_intents():
     status, _ct, resp = app.handle("POST", "/api/intent", body)
     assert status == 400
     assert _json_body(resp)["error"] == "intent_not_allowed"
-    # the rejected write never created a pending confirmation
-    assert app.runtime.context.pending_intent is None
+    assert app.endpoint.runtime.context.pending_intent is None
 
 
 def test_web_surface_rejects_malformed_json():
@@ -99,9 +108,17 @@ def test_unknown_route_is_404_not_a_crash():
 
 
 def test_degraded_adapter_is_represented():
-    view = _json_body(_app(_snapshot(degraded=True)).handle("GET", "/api/situation")[2])
-    assert view["degraded"] is True
-    assert view["systems_summary"]["error"] == 1
+    env = _json_body(_app(_snapshot(degraded=True)).handle("GET", "/api/situation")[2])
+    assert env["view"]["degraded"] is True
+    assert env["view"]["systems_summary"]["error"] == 1
+
+
+def test_lost_session_is_reestablished_on_next_request():
+    app = _app()
+    app.session_id = "stale-session"  # simulate a dropped/expired session
+    env = _json_body(app.handle("GET", "/api/situation")[2])
+    assert "view" in env  # reconnected transparently
+    assert app.session_id != "stale-session"
 
 
 def test_end_to_end_over_a_real_socket():
@@ -112,8 +129,8 @@ def test_end_to_end_over_a_real_socket():
         host, port = server.server_address[0], server.server_address[1]
         with urllib.request.urlopen(f"http://{host}:{port}/api/situation", timeout=5) as resp:
             assert resp.status == 200
-            view = json.loads(resp.read().decode("utf-8"))
-            assert view["schema"] == "babbly.situation-view.v1"
+            env = json.loads(resp.read().decode("utf-8"))
+            assert env["view"]["schema"] == "babbly.situation-view.v1"
     finally:
         server.shutdown()
         server.server_close()

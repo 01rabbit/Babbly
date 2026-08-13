@@ -20,20 +20,28 @@ drift into separate presentations of the same situation. Density follows
 [`attention-state.md`](attention-state.md): NORMAL exposes adapter health and the
 recommendation reason; HEADS_UP/CRITICAL compress progressively.
 
-## Canonical intents only
+## Over the EUD session contract
 
 `babbly/web/server.py` (`SituationWebApp`) is a presentation/input surface, not a
-second command system. All actions go through the shared `OperatorIntentRuntime`:
+second command system. It speaks the versioned EUD-to-Core **session contract**
+(`babbly.eud-session.v1`, see [`eud-session-contract.md`](eud-session-contract.md))
+rather than touching the runtime directly; the web server holds one server-side
+session on the browser's behalf and re-establishes it if it is lost.
 
-- `GET /api/situation` reads via the canonical `situation.report` intent.
-- `POST /api/intent` accepts only an allowlist of read/presentation intents
-  (`situation.report`, `recommendation.explain`, `attention.status`,
-  `attention.set`). Anything else — including `operation.run` — is rejected
-  (`intent_not_allowed`). The controlled write/approval path is deferred to #18.
+- `GET /api/situation` returns a session **envelope** (`revision`,
+  `generated_at`, `view`) from the canonical `situation.report` intent, so the
+  page can show freshness and flag stale data on a failed poll.
+- `POST /api/intent` forwards to the session's `submit_intent`, which accepts
+  only the read/presentation allowlist (`situation.report`,
+  `recommendation.explain`, `attention.status`, `attention.set`). Anything else —
+  including `operation.run` — is rejected (`intent_not_allowed`). Intent
+  submissions carry a `client_msg_id`, so a resend is idempotent and never
+  replayed. The controlled write/approval path remains #18.
 
 The web page's mode buttons submit `attention.set`, so a visual action reaches
 the same canonical intent path a voice command would, and the view immediately
-re-renders at the new density.
+re-renders at the new density. A failed poll keeps the last-known situation and
+shows a `stale` badge instead of blanking the surface.
 
 ## Running it
 
