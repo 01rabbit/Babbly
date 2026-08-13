@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+
 from babbly.nlu.japanese import normalize_japanese
 from babbly.wake.base import WakeDetector
 from babbly.wake.types import WakeResult
@@ -6,15 +10,21 @@ from babbly.wake.types import WakeResult
 class ASRWakeDetector(WakeDetector):
     """Compatibility wake gate using the configured ASR backend.
 
-    This preserves the existing behavior while allowing the main loop to stop
-    depending on how wake detection is implemented.
+    A profile may expose one or more wake phrases. Matching remains low-authority:
+    a wake hit only opens command listening and never creates an executable intent.
     """
 
-    def __init__(self, asr, phrase: str, aliases=None):
+    def __init__(self, asr, phrases: str | Sequence[str], aliases=None):
         self.asr = asr
-        self.phrase = phrase
         self.aliases = aliases
-        self.expected = normalize_japanese(phrase, aliases)
+        if isinstance(phrases, str):
+            values = (phrases,)
+        else:
+            values = tuple(str(value) for value in phrases)
+        self.phrases = tuple(value.strip() for value in values if value.strip())
+        self.expected = tuple(
+            (phrase, normalize_japanese(phrase, aliases)) for phrase in self.phrases
+        )
 
     def wait(self) -> WakeResult:
         while True:
@@ -22,10 +32,11 @@ class ASRWakeDetector(WakeDetector):
             if result.is_empty:
                 continue
             text = normalize_japanese(result.text, self.aliases)
-            if self.expected and self.expected in text:
-                return WakeResult(
-                    triggered=True,
-                    keyword=self.phrase,
-                    backend=f"asr:{result.backend}",
-                    confidence=result.confidence,
-                )
+            for phrase, expected in self.expected:
+                if expected and expected in text:
+                    return WakeResult(
+                        triggered=True,
+                        keyword=phrase,
+                        backend=f"asr:{result.backend}",
+                        confidence=result.confidence,
+                    )
