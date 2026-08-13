@@ -32,11 +32,13 @@ class IntentResult:
 
 
 class IntentResolver:
-    """Deterministic resolver for executable command routing."""
+    """Deterministic resolver for command and read-only operator intents."""
 
     RULES: Tuple[Tuple[str, Tuple[Tuple[str, ...], ...]], ...] = (
         ("system.exit", (("終了",), ("システム", "終了"))),
         ("system.introduce", (("自己紹介",),)),
+        ("situation.report", (("状況", "報告"), ("状況", "確認"), ("状況", "教え"))),
+        ("recommendation.explain", (("推奨", "説明"), ("推奨", "教え"), ("どうすれば",), ("何をすべき",))),
         ("network.scan", (("ネットワーク", "スキャン"), ("周辺", "スキャン"))),
         ("target.show", (("ターゲット", "教え"), ("ターゲット", "表示"), ("ターゲット", "確認"))),
         ("command.mode", (("コマンド",),)),

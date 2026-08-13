@@ -31,3 +31,14 @@ WHISPER_COMPUTE_TYPE: "int8"
 ASR_SILENCE_SECONDS: 0.8
 ASR_MAX_SECONDS: 12.0
 ASR_RMS_THRESHOLD: 0.012
+
+# Optional read-only Azazel-Edge situation source. Disabled by default so
+# standalone Babbly behavior remains unchanged. When enabled, Babbly only GETs
+# /api/state and prefers the additive Azazel-Fabric status_view contract.
+AZAZEL_EDGE_ENABLED: false
+AZAZEL_EDGE_URL: "http://127.0.0.1:8084"
+AZAZEL_EDGE_TOKEN_ENV: "AZAZEL_EDGE_TOKEN"
+AZAZEL_EDGE_TOKEN_FILE: ""
+AZAZEL_EDGE_TIMEOUT_SEC: 2.0
+AZAZEL_EDGE_CACHE_TTL_SEC: 1.0
+AZAZEL_EDGE_MAX_RESPONSE_BYTES: 1048576
