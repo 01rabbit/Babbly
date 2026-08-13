@@ -1,0 +1,32 @@
+[
+  {
+    "id": "wake-positive-001",
+    "utterance": "プログラム",
+    "expected_trigger": true,
+    "class": "wake"
+  },
+  {
+    "id": "wake-positive-002",
+    "utterance": "プログラム",
+    "expected_trigger": true,
+    "class": "wake"
+  },
+  {
+    "id": "wake-negative-001",
+    "utterance": "こんにちは",
+    "expected_trigger": false,
+    "class": "non-wake"
+  },
+  {
+    "id": "wake-negative-002",
+    "utterance": "状況を報告して",
+    "expected_trigger": false,
+    "class": "command-without-wake"
+  },
+  {
+    "id": "wake-negative-003",
+    "utterance": "プログラムを終了して",
+    "expected_trigger": false,
+    "class": "confusable"
+  }
+]

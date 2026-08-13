@@ -1,0 +1,16 @@
+[
+  {
+    "id": "wake-positive-001",
+    "actual_trigger": true,
+    "latency_ms": 180.2,
+    "backend": "sherpa-onnx-kws",
+    "model": "replace-me"
+  },
+  {
+    "id": "wake-negative-001",
+    "actual_trigger": false,
+    "latency_ms": null,
+    "backend": "sherpa-onnx-kws",
+    "model": "replace-me"
+  }
+]
