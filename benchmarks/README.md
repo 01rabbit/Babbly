@@ -46,7 +46,7 @@ The first benchmark intentionally emphasizes operational behavior over transcrip
 - false-execution rate
 - mean recognition latency
 
-For the Pi 5 hardware study, also record externally:
+For the Pi 5 hardware study, also record:
 
 - peak RSS / memory
 - average and peak CPU utilization
@@ -54,7 +54,9 @@ For the Pi 5 hardware study, also record externally:
 - model load time
 - idle power if available
 
-The preferred backend is not automatically the one with the lowest character error rate. Babbly should prioritize high intent accuracy, zero or near-zero false execution, acceptable clarification rate, and field-usable latency.
+`tools/capture_runtime_benchmark.py` now records CPU, process-tree RSS, temperature, machine metadata, duration, and raw samples in one JSON file. It can also embed machine-readable output from the ASR or wake evaluator. See [`docs/pi-runtime-benchmark.md`](../docs/pi-runtime-benchmark.md).
+
+The preferred backend is not automatically the one with the lowest character error rate. Babbly should prioritize high intent accuracy, zero or near-zero false execution, acceptable clarification rate, and field-usable latency while keeping idle/runtime cost acceptable on the target Pi.
 
 ## Safety
 
