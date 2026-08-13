@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-vosk = "*"
+vosk = "<0.3.45"
 faster-whisper = "*"
 numpy = "*"
 soundcard = "*"
