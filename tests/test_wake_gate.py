@@ -32,12 +32,29 @@ def test_asr_wake_detector_is_not_sensitive_to_whitespace():
     assert ASRWakeDetector(asr, "プログラム").wait().triggered is True
 
 
+def test_asr_wake_detector_accepts_profile_phrase_set():
+    asr = FakeASR([ASRResult("ねえ ミオ 状況は", 0.91, "fake")])
+    result = ASRWakeDetector(asr, ["ミオ", "MIO"]).wait()
+    assert result.triggered is True
+    assert result.keyword == "ミオ"
+    assert result.confidence == 0.91
+
+
 def test_factory_defaults_to_legacy_compatible_asr_gate():
     detector = create_wake_detector(
         {"WAKEUP_PHRASE": "プログラム"},
         FakeASR([ASRResult("プログラム", None, "fake")]),
     )
     assert isinstance(detector, ASRWakeDetector)
+
+
+def test_factory_prefers_profile_wake_phrases():
+    detector = create_wake_detector(
+        {"WAKEUP_PHRASE": "fallback", "WAKEUP_PHRASES": ["ミオ"]},
+        FakeASR([ASRResult("ミオ", None, "fake")]),
+    )
+    result = detector.wait()
+    assert result.keyword == "ミオ"
 
 
 def test_unknown_wake_backend_is_rejected():
