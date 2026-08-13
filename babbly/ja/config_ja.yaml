@@ -9,6 +9,21 @@ SOP_PATH: "babbly/ja/sop.json"
 # confirmed, but executable actions are suppressed.
 DRY_RUN: false
 
+# Wake detection is independent from command ASR. "asr" preserves the legacy
+# behavior. "sherpa-onnx" enables a lightweight always-on KWS model that must be
+# provisioned locally before entering an offline environment.
+WAKE_BACKEND: "asr"
+KWS_TOKENS: ""
+KWS_ENCODER: ""
+KWS_DECODER: ""
+KWS_JOINER: ""
+KWS_KEYWORDS_FILE: ""
+KWS_SAMPLE_RATE: 16000
+KWS_CHUNK_MS: 100
+KWS_NUM_THREADS: 2
+KWS_PROVIDER: "cpu"
+KWS_INPUT_DEVICE: null
+
 # Offline ASR backend. Keep "vosk" for compatibility, or switch to
 # "faster-whisper" after provisioning the model locally.
 ASR_BACKEND: "vosk"

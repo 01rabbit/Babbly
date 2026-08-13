@@ -17,6 +17,7 @@ from babbly.modules.utils import analyze_text, assist_command_mode, introduce, l
 from babbly.nlu.japanese import IntentResolver, normalize_japanese
 from babbly.nlu.policy import Decision, IntentPolicy
 from babbly.nlu.vocabulary import build_aliases
+from babbly.wake import create_wake_detector
 
 
 tts = Japanese_TTS()
@@ -93,17 +94,23 @@ def speak_recommendation():
     tts.say(message)
 
 
-def listen_for_wakeup_phrase(asr):
+def wait_for_wakeup(wake_detector, asr):
+    """Wait at the low-authority wake gate, then enter normal ASR command mode."""
     try:
         while True:
-            result = listen_result(asr)
-            if result.is_empty:
+            result = wake_detector.wait()
+            if not result.triggered:
                 continue
-            print(f"認識テキスト: {result.text}")
-            if normalize_japanese(WAKEUP_PHRASE, domain_aliases) in normalize_japanese(result.text, domain_aliases):
-                print("ウェイクアップフレーズ認識。次の入力を待機します。")
-                tts.say("はい、ボス")
-                listen_for_command(asr)
+            confidence = "unknown" if result.confidence is None else f"{result.confidence:.2f}"
+            logging.info(
+                "wake triggered backend=%s keyword=%s confidence=%s",
+                result.backend,
+                result.keyword,
+                confidence,
+            )
+            print(f"ウェイクアップ検知: {result.keyword} ({result.backend})")
+            tts.say("はい、ボス")
+            listen_for_command(asr)
     except KeyboardInterrupt:
         print("\nCtrl+Cが押されました。プログラムを終了します。")
         logging.info("システム終了")
@@ -250,21 +257,22 @@ def main():
     config = load_config("babbly/ja/config_ja.yaml")
     set_globals(config)
     set_situation_engine(create_situation_engine(config))
-    logging.info(
-        "設定読み込み完了 dry_run=%s azazel_edge=%s",
-        DRY_RUN,
-        bool(config.get("AZAZEL_EDGE_ENABLED", False)),
-    )
 
     asr = create_asr(config)
-    logging.info("音声認識機能 初期化完了 backend=%s", config.get("ASR_BACKEND", "vosk"))
+    wake_detector = create_wake_detector(config, asr, domain_aliases)
+    logging.info(
+        "設定読み込み完了 dry_run=%s azazel_edge=%s asr=%s wake=%s",
+        DRY_RUN,
+        bool(config.get("AZAZEL_EDGE_ENABLED", False)),
+        config.get("ASR_BACKEND", "vosk"),
+        config.get("WAKE_BACKEND", "asr"),
+    )
 
     print("＜音声認識開始 - 入力を待機します＞")
     if DRY_RUN:
         print("DRY_RUN is enabled: executable actions will be suppressed")
     tts.say("人工無能システム、バブリー、起動します。")
-    while True:
-        listen_for_wakeup_phrase(asr)
+    wait_for_wakeup(wake_detector, asr)
 
 
 if __name__ == '__main__':
