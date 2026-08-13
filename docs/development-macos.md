@@ -23,17 +23,34 @@ The development workflow should remain compatible with Apple Silicon Macs genera
 
 The Mac and Pi audio devices are different. A successful Mac test is not evidence that microphone selection, gain, speaker output, or real-time audio timing is correct on the Pi.
 
+## Prerequisites
+
+- **Python 3.11** on the reference host. CI runs 3.11, and some pinned wheels
+  (e.g. `vosk`) do not publish an Apple Silicon build for 3.10. Use a 3.11
+  interpreter to create the virtual environment.
+- **CMake** is required to build the offline TTS dependency `pyopenjtalk` from
+  source: `brew install cmake`. With CMake 4.x, export
+  `CMAKE_POLICY_VERSION_MINIMUM=3.5` before installing so the vendored
+  `open_jtalk`/`hts_engine` sources still configure.
+
 ## Initial setup
 
 ```bash
-python3 -m venv .venv
+# Use a Python 3.11 interpreter for the virtual environment.
+python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install pipenv
 pipenv requirements > /tmp/babbly-requirements.txt
-python -m pip install -r /tmp/babbly-requirements.txt
+# CMAKE_POLICY_VERSION_MINIMUM is only needed with CMake >= 4.
+CMAKE_POLICY_VERSION_MINIMUM=3.5 python -m pip install -r /tmp/babbly-requirements.txt
 python -m pip install "pytest>=8,<10"
 ```
+
+The offline ASR model is a separate, uncommitted asset. `vosk` expects a model
+directory at `MODEL_PATH` (default `babbly/ja/model`); provision it before
+running the full voice loop. Tests, `--list-profiles`, and profile/DRY_RUN
+startup do not require the model.
 
 Run tests:
 
