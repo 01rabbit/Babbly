@@ -16,7 +16,7 @@ The development workflow should remain compatible with Apple Silicon Macs genera
 
 1. Implement on the MacBook Pro M5 Pro.
 2. Run compile/unit/core tests on the MacBook.
-3. Exercise normalization, intent, policy, Situation Model, adapters, dry-run behavior, and benchmark tooling locally.
+3. Exercise normalization, intent, policy, Agent Profiles, Situation Model, adapters, dry-run behavior, and benchmark tooling locally.
 4. Commit and push to GitHub; CI runs on both macOS and Linux.
 5. Pull the verified revision to the Raspberry Pi target.
 6. Validate Pi-specific audio devices, KWS/ASR latency, thermal behavior, and resource limits on the Pi.
@@ -41,11 +41,25 @@ Run tests:
 ./run_babbly.sh test
 ```
 
-Run Japanese Babbly:
+List profiles:
 
 ```bash
-./run_babbly.sh ja
+python babbly_ja.py --list-profiles
 ```
+
+Run normal Babbly:
+
+```bash
+./run_babbly.sh ja --profile generic
+```
+
+Run the Azazel-Edge M.I.O profile:
+
+```bash
+./run_babbly.sh ja --profile azazel-edge
+```
+
+For M.I.O, the expected operator-facing identity is `M.I.O`, the spoken/wake name is `ミオ`, the vocabulary is `core + azazel`, and the read-only Azazel-Edge situation source is enabled. Profile selection must not alter DRY_RUN, Intent thresholds, command/SOP registries, or action authority.
 
 During voice/intent development, set `DRY_RUN: true` in `babbly/ja/config_ja.yaml` so operational actions remain suppressed.
 
@@ -60,8 +74,10 @@ python tools/capture_dev_benchmark.py \
   --backend-type asr \
   --backend vosk \
   --duration 30 \
-  -- python babbly_ja.py
+  -- python babbly_ja.py --profile generic
 ```
+
+To benchmark M.I.O's runtime path, append `--profile azazel-edge` to the child command.
 
 On macOS it uses `ps` to aggregate CPU and RSS for the Babbly process tree. The benchmark JSON records macOS machine information via `sysctl`, so M5 Pro measurements can be separated from other Apple Silicon results. It does not invent a temperature value: macOS temperature remains `null` unless a future explicitly supported sensor provider is added.
 
@@ -71,7 +87,7 @@ Move a change to Pi validation only after the Mac/CI layer passes. Pi validation
 
 - physical microphone/speaker behavior
 - ALSA/Pulse/PipeWire/device-specific integration where applicable
-- wake-word false accept/reject behavior on the actual microphone
+- profile wake-word false accept/reject behavior on the actual microphone
 - ASR real-time latency
 - CPU/RSS under the deployment image
 - temperature and throttling
