@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from babbly.core.attention import AttentionController, coerce_state
 from babbly.core.engine import SituationEngine
 from babbly.core.operator_intent import (
     ClarificationState,
@@ -21,7 +22,8 @@ class OperatorIntentRuntime:
     External-system write requests remain out of scope until #18.
     """
 
-    READ_ONLY_INTENTS = {"situation.report", "recommendation.explain"}
+    READ_ONLY_INTENTS = {"situation.report", "recommendation.explain", "attention.status"}
+    PRESENTATION_INTENTS = {"attention.set", "attention.status"}
 
     def __init__(
         self,
@@ -29,10 +31,12 @@ class OperatorIntentRuntime:
         *,
         dry_run: bool = False,
         context: Optional[OperatorContext] = None,
+        attention: Optional[AttentionController] = None,
     ) -> None:
         self.situation_engine = situation_engine or SituationEngine()
         self.dry_run = bool(dry_run)
         self.context = context or OperatorContext()
+        self.attention = attention or AttentionController()
 
     def submit(self, intent: OperatorIntent) -> OperatorResult:
         bound = self.context.bind(intent)
@@ -73,6 +77,19 @@ class OperatorIntentRuntime:
                 audit_id=bound.audit_id,
                 payload=payload,
                 message_code="recommendation.snapshot",
+            )
+
+        if bound.intent_id == "attention.set":
+            return self._set_attention(bound)
+
+        if bound.intent_id == "attention.status":
+            return OperatorResult(
+                intent_id=bound.intent_id,
+                status="ok",
+                correlation_id=bound.correlation_id,
+                audit_id=bound.audit_id,
+                payload={"attention": self.attention.snapshot()},
+                message_code="attention.status",
             )
 
         if bound.intent_id == "operation.run":
@@ -134,6 +151,45 @@ class OperatorIntentRuntime:
                 "context_ref": intent.context_ref,
             },
             message_code=code,
+        )
+
+    def _set_attention(self, intent: OperatorIntent) -> OperatorResult:
+        """Apply an operator attention-state change.
+
+        Attention state is a presentation control: it is applied without
+        confirmation and it never alters execution authority, confirmation
+        policy, the pending operation, or the SituationSnapshot. An unknown
+        state fails closed.
+        """
+        try:
+            target = coerce_state(intent.parameters.get("state"))
+        except ValueError:
+            return OperatorResult(
+                intent_id=intent.intent_id,
+                status="invalid",
+                correlation_id=intent.correlation_id,
+                audit_id=intent.audit_id,
+                payload={"requested": intent.parameters.get("state")},
+                message_code="attention.invalid_state",
+            )
+
+        previous = self.attention.state
+        transition = self.attention.request_state(
+            target,
+            intent.source_modality.value,
+            reason=intent.parameters.get("reason"),
+        )
+        return OperatorResult(
+            intent_id=intent.intent_id,
+            status="ok",
+            correlation_id=intent.correlation_id,
+            audit_id=intent.audit_id,
+            payload={
+                "attention_state": self.attention.state.value,
+                "previous_state": previous.value,
+                "transition": transition.to_dict(),
+            },
+            message_code="attention.state_changed",
         )
 
     def resolve_pending(self, approved: bool, modality: SourceModality) -> OperatorResult:
