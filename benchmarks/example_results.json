@@ -1,0 +1,11 @@
+[
+  {
+    "id": "scan-001",
+    "recognized_text": "ネットワークをスキャンして",
+    "latency_ms": 842.4,
+    "backend": "faster-whisper",
+    "model": "small",
+    "device": "raspberry-pi-5",
+    "notes": "example only"
+  }
+]

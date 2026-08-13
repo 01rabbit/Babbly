@@ -4,4 +4,30 @@ EXIT_PHRASE: "終了"
 COMMANDS_PATH: "babbly/ja/commands.json"
 TARGETS_PATH: "babbly/ja/targets.json"
 SOP_PATH: "babbly/ja/sop.json"
+
+# Set true while tuning voice recognition. Known commands are resolved and
+# confirmed, but executable actions are suppressed.
+DRY_RUN: false
+
+# Offline ASR backend. Keep "vosk" for compatibility, or switch to
+# "faster-whisper" after provisioning the model locally.
+ASR_BACKEND: "vosk"
+ASR_LANGUAGE: "ja"
 MODEL_PATH: "babbly/ja/model"
+
+# Intent routing. Unknown or low-confidence speech fails closed.
+INTENT_EXECUTE_THRESHOLD: 0.90
+INTENT_CLARIFY_THRESHOLD: 0.60
+DOMAIN_VOCABULARY:
+  - core
+  - kali
+  - azazel
+
+# faster-whisper settings. WHISPER_MODEL may be a model name when initially
+# provisioning, or a local model directory for fully disconnected operation.
+WHISPER_MODEL: "small"
+WHISPER_DEVICE: "cpu"
+WHISPER_COMPUTE_TYPE: "int8"
+ASR_SILENCE_SECONDS: 0.8
+ASR_MAX_SECONDS: 12.0
+ASR_RMS_THRESHOLD: 0.012

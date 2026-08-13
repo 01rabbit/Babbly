@@ -4,9 +4,13 @@
 
 ## Overview of Tools
 
-**Babbly** is a penetration testing support tool featuring **Artificial Incompetence**. Instead of relying on AI, it achieves intuitive dialogue-based operation through natural language processing and voice recognition. Supporting eyes-free and hands-free operation, security tests can be efficiently performed alongside other tasks since they can be executed through voice commands alone without checking the screen. With its human-like conversational interface, it's easy for beginners to use and offers high flexibility. In an era dominated by AI, Babbly deliberately adopts Artificial Incompetence to propose a new approach that balances approachability with practicality.
+**Babbly** is a penetration testing support tool featuring **Artificial Incompetence**. Instead of relying on cloud AI, it achieves intuitive dialogue-based operation through natural language processing and voice recognition. Supporting eyes-free and hands-free operation, security tests can be efficiently performed alongside other tasks since they can be executed through voice commands alone without checking the screen. With its human-like conversational interface, it's easy for beginners to use and offers high flexibility.
 
-「**Babbly**」は**人工無能**（**Artificial Incompetence**）を特徴とするペネトレーションテスト支援ツールです。AIに依存せず、自然言語処理と音声認識により直感的な対話型操作を実現します。アイズフリー・ハンズフリーに対応し、音声指示だけでテストを実行できるため、画面確認なしで他の作業と並行して効率的なセキュリティテストが可能です。人間らしい会話形式のインターフェースにより、初心者でも使いやすく、高い柔軟性を備えています。AIが主流の時代に、あえて人工無能を採用することで、親しみやすさと実用性を両立した新しいアプローチを提案します。
+The current next-generation work is evolving Babbly into a reusable **offline voice-agent foundation**. The migration keeps the original deterministic/SOP model while adding pluggable offline ASR, Japanese normalization, domain vocabulary packs, confidence-aware intent routing, explicit clarification, and a dry-run validation mode. See [`docs/offline-asr.md`](docs/offline-asr.md).
+
+「**Babbly**」は**人工無能**（**Artificial Incompetence**）を特徴とするペネトレーションテスト支援ツールです。クラウドAIに依存せず、自然言語処理と音声認識により直感的な対話型操作を実現します。アイズフリー・ハンズフリーに対応し、音声指示だけでテストを実行できるため、画面確認なしで他の作業と並行して効率的なセキュリティテストが可能です。
+
+現在は次世代化として、Babblyを再利用可能な**オフライン音声エージェント基盤**へ進化させています。従来の決定論的なSOPモデルを維持しつつ、差し替え可能なオフラインASR、日本語正規化、ドメイン語彙、信頼度ベースのIntent判定、明示的な聞き返し、DRY RUN検証を追加する方針です。詳細は [`docs/offline-asr.md`](docs/offline-asr.md) を参照してください。
 
 ### [日本語モード](babbly/ja/README.md)
 
