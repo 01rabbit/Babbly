@@ -22,18 +22,23 @@ fi
 source .venv/bin/activate
 
 MODE="${1:-ja}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
 case "$MODE" in
   ja)
-    exec python babbly_ja.py
+    exec python babbly_ja.py "$@"
     ;;
   en)
-    exec python babbly_en.py
+    exec python babbly_en.py "$@"
     ;;
   test)
-    exec python -m pytest -q tests
+    exec python -m pytest -q tests "$@"
     ;;
   *)
-    echo "Usage: ./run_babbly.sh [ja|en|test]"
+    echo "Usage: ./run_babbly.sh [ja|en|test] [options]"
+    echo "Example: ./run_babbly.sh ja --profile azazel-edge"
     exit 2
     ;;
 esac
