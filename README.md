@@ -66,6 +66,11 @@ source .venv/bin/activate
 
 See [`docs/development-macos.md`](docs/development-macos.md) for setup, the Mac-to-Pi promotion gate, and the platform-aware development benchmark flow.
 
+## Changelog
+
+Notable changes are recorded in [`CHANGELOG.md`](CHANGELOG.md), following
+[Keep a Changelog](https://keepachangelog.com/) and Semantic Versioning.
+
 ### [日本語モード](babbly/ja/README.md)
 
 日本語を使用するユーザは、こちらのリンクをご確認ください。
