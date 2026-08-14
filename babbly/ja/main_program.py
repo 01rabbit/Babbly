@@ -10,7 +10,11 @@ from babbly.asr import create_asr
 from babbly.core.engine import SituationEngine
 from babbly.core.operator_intent import OperatorIntent, SourceModality
 from babbly.core.operator_runtime import OperatorIntentRuntime
-from babbly.core.render import render_recommendation_ja, render_situation_ja
+from babbly.core.render import (
+    render_recommendation_for_attention,
+    render_situation_for_attention,
+)
+from babbly.core.runtime_factory import build_operator_runtime
 from babbly.core.situation import SituationSnapshot
 from babbly.ja.japanese_tts import Japanese_TTS
 from babbly.modules.commands_manager import CommandManager
@@ -43,6 +47,18 @@ def set_agent_profile(profile):
     """Set identity/persona metadata; this does not grant execution authority."""
     global agent_profile
     agent_profile = profile
+
+
+def configure_operator_runtime(config, engine):
+    """Rebuild the shared operator runtime from config.
+
+    Activates the controlled write path (#18) only when the config enables it;
+    otherwise the runtime keeps the read/confirmation-only behaviour. Binds the
+    read-only situation engine.
+    """
+    global situation_engine, operator_runtime
+    situation_engine = engine
+    operator_runtime = build_operator_runtime(config, engine)
 
 
 def set_globals(config):
@@ -126,7 +142,8 @@ def report_dry_run(action, detail=""):
 def speak_situation_report(confidence=None):
     result = operator_runtime.submit(_voice_intent("situation.report", confidence=confidence))
     snapshot = SituationSnapshot.from_dict(result.payload.get("snapshot", {}))
-    message = render_situation_ja(snapshot)
+    # Render at the current operator-attention density (NORMAL/HEADS_UP/CRITICAL).
+    message = render_situation_for_attention(snapshot, operator_runtime.attention.state)
     print(message)
     tts.say(message)
 
@@ -134,9 +151,36 @@ def speak_situation_report(confidence=None):
 def speak_recommendation(confidence=None):
     result = operator_runtime.submit(_voice_intent("recommendation.explain", confidence=confidence))
     snapshot = SituationSnapshot.from_dict(result.payload.get("snapshot", {}))
-    message = render_recommendation_ja(snapshot)
+    message = render_recommendation_for_attention(snapshot, operator_runtime.attention.state)
     print(message)
     tts.say(message)
+
+
+# Operator-controlled attention mode switch via voice. This changes presentation
+# density only; it never changes execution authority or confirmation policy.
+_ATTENTION_PHRASES = (
+    ("ヘッドアップ", "heads_up"),
+    ("ヘッズアップ", "heads_up"),
+    ("クリティカル", "critical"),
+    ("ノーマル", "normal"),
+    ("通常モード", "normal"),
+)
+_ATTENTION_LABELS = {"normal": "通常", "heads_up": "ヘッドアップ", "critical": "クリティカル"}
+
+
+def maybe_set_attention(normalized):
+    """Handle a spoken attention-mode change; return True if one was applied."""
+    for phrase, state in _ATTENTION_PHRASES:
+        if phrase in normalized:
+            result = operator_runtime.submit(
+                _voice_intent("attention.set", parameters={"state": state})
+            )
+            if result.status == "ok":
+                message = f"注意モードを{_ATTENTION_LABELS[state]}に切り替えました"
+                print(message)
+                tts.say(message)
+                return True
+    return False
 
 
 def wait_for_wakeup(wake_detector, asr):
@@ -199,6 +243,11 @@ def listen_for_command(asr):
                 print("終了フレーズ認識。処理を終了します。")
                 tts.say(_persona_value("shutdown_phrase", "システムを終了します。お疲れ様でした。"))
                 raise SystemExit(0)
+
+            # Presentation-only attention switch. No confidence gate: it grants
+            # no execution authority and only changes rendering density.
+            if maybe_set_attention(normalized):
+                break
 
             if intent.name != "unknown" and policy.decision == Decision.CLARIFY:
                 if not ask_confirmation(asr, f"{recog_text}、という指示でよろしいですか"):
@@ -286,6 +335,26 @@ def listen_for_command(asr):
                 if DRY_RUN:
                     report_dry_run("operation", op_name)
                     break
+                # A confirmed external write action (#18) is dispatched by the
+                # runtime and reports its own result; Azazel-Edge keeps final
+                # authority and may reject it.
+                if resolved.status == "completed":
+                    detail = resolved.payload.get("detail")
+                    message = f"オペレーション {op_name} を実行しました"
+                    if detail:
+                        message += f"。{detail}"
+                    print(message)
+                    tts.say(message)
+                    break
+                if resolved.status == "failed":
+                    detail = resolved.payload.get("detail") or ""
+                    message = f"オペレーション {op_name} は承認先で拒否または失敗しました"
+                    if detail:
+                        message += f"。{detail}"
+                    print(message)
+                    tts.say(message)
+                    break
+                # Otherwise this is a registered local operation (SOP boundary).
                 if resolved.status != "ready_for_registered_executor":
                     tts.say("オペレーションを実行可能な状態にできませんでした")
                     continue
@@ -343,7 +412,7 @@ def main(argv=None):
     config = apply_profile_to_config(base_config, profile)
     set_agent_profile(profile)
     set_globals(config)
-    set_situation_engine(create_situation_engine(config))
+    configure_operator_runtime(config, create_situation_engine(config))
 
     ascii_art = pyfiglet.figlet_format(profile.identity.display_name, font="dos_rebel")
     print(ascii_art)
@@ -366,11 +435,28 @@ def main(argv=None):
         config.get("WAKE_BACKEND", "asr"),
     )
 
+    # Optionally serve the compact Web/EUD surface in a background thread bound
+    # to THIS shared runtime, so voice and the wearable EUD keep one target,
+    # attention state, and pending confirmation.
+    web_server = None
+    if bool(config.get("WEB_SURFACE_ENABLED", False)):
+        from babbly.web.server import start_web_surface
+
+        web_host = str(config.get("WEB_SURFACE_HOST", "127.0.0.1"))
+        web_port = int(config.get("WEB_SURFACE_PORT", 8787))
+        web_server, _web_thread = start_web_surface(operator_runtime, host=web_host, port=web_port)
+        print(f"Web surface: http://{web_host}:{web_port} (shared runtime)")
+
     print("＜音声認識開始 - 入力を待機します＞")
     if DRY_RUN:
         print("DRY_RUN is enabled: executable actions will be suppressed")
     tts.say(profile.persona.startup_phrase)
-    wait_for_wakeup(wake_detector, asr)
+    try:
+        wait_for_wakeup(wake_detector, asr)
+    finally:
+        if web_server is not None:
+            web_server.shutdown()
+            web_server.server_close()
 
 
 if __name__ == '__main__':
