@@ -3,3 +3,4 @@ speech.txt
 speech.wav
 .venv/
 results/
+babbly/ja/model/
