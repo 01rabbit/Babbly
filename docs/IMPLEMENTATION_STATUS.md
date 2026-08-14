@@ -31,6 +31,12 @@ Implemented on this branch:
   and full command ASR, so idle operation does not run full ASR continuously
 - offline wake benchmark corpus and FAR/FRR/latency evaluator
   (`tools/evaluate_wake_results.py`)
+- live JA voice app wiring (`babbly/ja/main_program.py`): builds the runtime via
+  `build_operator_runtime` so the controlled write path activates from config
+  (`AZAZEL_EDGE_WRITE_ENABLED` + `AZAZEL_EDGE_WRITE_ACTIONS`, default off);
+  renders situation/recommendation at the current attention density and switches
+  attention mode by voice; and can serve the Web/EUD surface in a background
+  thread bound to the same runtime (`WEB_SURFACE_ENABLED`, default off)
 - full tests and GitHub Actions coverage
 
 Not implemented yet:

@@ -19,6 +19,7 @@ without the offline voice/ASR stack.
 from __future__ import annotations
 
 import json
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
@@ -147,13 +148,33 @@ def make_server(app: SituationWebApp, host: str = "127.0.0.1", port: int = 8787)
     return ThreadingHTTPServer((host, port), _Handler)
 
 
+def start_web_surface(
+    runtime: Optional[OperatorIntentRuntime] = None,
+    host: str = "127.0.0.1",
+    port: int = 8787,
+    *,
+    endpoint: Optional[CoreSessionEndpoint] = None,
+) -> Tuple[ThreadingHTTPServer, threading.Thread]:
+    """Start the Situation surface in a daemon thread bound to a shared runtime.
+
+    Returns (server, thread). The caller (e.g. the voice loop) keeps running;
+    call server.shutdown()/server.server_close() to stop. Pass either a shared
+    `runtime` or an existing `CoreSessionEndpoint` via `endpoint`.
+    """
+    app = SituationWebApp(runtime, endpoint=endpoint)
+    server = make_server(app, host, port)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
 def serve(host: str = "127.0.0.1", port: int = 8787, runtime: Optional[OperatorIntentRuntime] = None) -> None:
     """Run the Situation surface until interrupted (local prototype; binds loopback)."""
-    app = SituationWebApp(runtime)
-    server = make_server(app, host, port)
+    server, thread = start_web_surface(runtime, host, port)
     print(f"Babbly Situation surface on http://{host}:{port}")
     try:
-        server.serve_forever()
+        while thread.is_alive():
+            thread.join(timeout=1.0)
     except KeyboardInterrupt:
         pass
     finally:

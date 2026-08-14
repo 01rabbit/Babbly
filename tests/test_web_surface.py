@@ -5,7 +5,7 @@ import urllib.request
 from babbly.core.attention import OperatorAttentionState
 from babbly.core.operator_runtime import OperatorIntentRuntime
 from babbly.core.situation import Observation, Recommendation, SituationSnapshot
-from babbly.web.server import SituationWebApp, make_server
+from babbly.web.server import SituationWebApp, make_server, start_web_surface
 
 
 class _FakeEngine:
@@ -131,6 +131,32 @@ def test_end_to_end_over_a_real_socket():
             assert resp.status == 200
             env = json.loads(resp.read().decode("utf-8"))
             assert env["view"]["schema"] == "babbly.situation-view.v1"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_start_web_surface_shares_runtime():
+    runtime = OperatorIntentRuntime(situation_engine=_FakeEngine(_snapshot()))
+    server, thread = start_web_surface(runtime, host="127.0.0.1", port=0)
+    try:
+        port = server.server_address[1]
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/situation", timeout=5) as resp:
+            assert resp.status == 200
+            env = json.loads(resp.read().decode("utf-8"))
+        view = env["view"]
+        assert view["attention_state"] == "normal"
+
+        # Mutate the shared runtime directly; the served surface must reflect it,
+        # proving the web surface and this runtime share the same state.
+        runtime.attention.request_state("critical", "test")
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/situation", timeout=5) as resp:
+            assert resp.status == 200
+            env = json.loads(resp.read().decode("utf-8"))
+        view = env["view"]
+        assert view["attention_state"] == "critical"
     finally:
         server.shutdown()
         server.server_close()

@@ -62,3 +62,19 @@ AZAZEL_EDGE_TOKEN_FILE: ""
 AZAZEL_EDGE_TIMEOUT_SEC: 2.0
 AZAZEL_EDGE_CACHE_TTL_SEC: 1.0
 AZAZEL_EDGE_MAX_RESPONSE_BYTES: 1048576
+
+# Controlled write path (#18). Disabled by default: a confirmed operation stays
+# at the registered-executor boundary unless it is BOTH enabled here AND listed
+# in AZAZEL_EDGE_WRITE_ACTIONS. Even then, the operator must confirm each action
+# and Azazel-Edge keeps final decision authority. Profiles cannot change this.
+AZAZEL_EDGE_WRITE_ENABLED: false
+AZAZEL_EDGE_WRITE_ACTIONS: []
+AZAZEL_EDGE_ACTION_PATH: "/api/action"
+AZAZEL_EDGE_APPROVAL_TIMEOUT_SEC: 120.0
+
+# Optional compact Web/EUD surface, served in a background thread bound to the
+# same runtime as the voice loop (shared target/attention/pending state). Binds
+# loopback by default. Presentation/input only; it exposes no write intents.
+WEB_SURFACE_ENABLED: false
+WEB_SURFACE_HOST: "127.0.0.1"
+WEB_SURFACE_PORT: 8787
