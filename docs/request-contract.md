@@ -72,12 +72,32 @@ metadata for the full lifecycle.
 
 ## Relationship to the canonical intent runtime
 
-`OperatorIntentRuntime` today stops registered `operation.run` at
-`confirmation_required` and represents DRY_RUN; it does not itself perform
-external writes. Wiring a confirmed operation into a `ControlledRequestManager`
-request (and an Azazel-Edge `ActionExecutor`) is the integration point for the
-future "M.I.O, isolate the target" flow, which must still end at Azazel-Edge's
-deterministic decision authority.
+`OperatorIntentRuntime` is wired to this contract for external write actions.
+Construct it with a `ControlledRequestManager`, an `action_executor`, and a
+`write_actions` allowlist (`{operation_name: RiskClass}`). A registered
+`operation.run` that is **not** in the allowlist still stops at the
+registered-executor boundary, unchanged. An operation that **is** in the
+allowlist follows this path once the operator confirms it (the intent
+confirmation is the human approval):
+
+```text
+"ミオ、対象を隔離"
+  -> operation.run (isolate.target)
+  -> confirmation_required        # human authority
+  -> operator approves            # resolve_pending(approved=True)
+  -> ControlledRequestManager: submit -> approve -> dispatch
+  -> AzazelEdgeActionExecutor.execute_action  # Edge decides
+  -> COMPLETED / FAILED (executor may reject)
+  -> M.I.O reports the result
+```
+
+`AzazelEdgeActionExecutor` (`babbly/adapters/azazel_edge_action.py`) POSTs a
+`babbly.action-proposal.v1` envelope to Azazel-Edge and interprets its decision.
+Edge keeps final authority: an unrecognized or rejecting decision fails closed.
+The write path is **disabled by default**; `create_action_executor` returns
+`None` unless `AZAZEL_EDGE_WRITE_ENABLED` is set and
+`AZAZEL_EDGE_WRITE_ACTIONS` lists at least one action. DRY_RUN completes the
+request without contacting Edge.
 
 ## Safety invariants
 
