@@ -1,15 +1,16 @@
-"""Compact responsive Web/TUI Situation surface (issue #17).
+"""Compact responsive Web/TUI Situation surface (issues #17, #19).
 
-This is the first Babbly EUD prototype: a smartphone-friendly web view over the
-existing `SituationSnapshot`, driven entirely through the canonical operator
-intent runtime. It is a presentation/input surface, not a second command
-system:
+The first Babbly EUD prototype: a smartphone-friendly web view over the existing
+`SituationSnapshot`. It is a presentation/input surface, not a second command
+system, and it now speaks the versioned EUD-to-Core **session contract**
+(`babbly.eud-session.v1`) instead of touching the runtime directly:
 
-- reads go through the canonical `situation.report` intent;
-- the only write it accepts is a presentation change (`attention.set`) plus the
-  read intents, all on the same `OperatorIntentRuntime` used by voice;
-- it never executes registered operations or arbitrary shell strings. The
-  controlled write/approval path is deferred to #18.
+- reads go through `situation.report` and arrive as a session *envelope* with
+  `revision` + `generated_at`, so the page can show freshness/staleness;
+- the only writes accepted are the session's read/presentation allowlist
+  (`attention.set` etc.); operation execution and external writes are rejected;
+- intent submissions carry a `client_msg_id`, so a resend is idempotent;
+- the page keeps its last-known situation and flags it stale on a failed poll.
 
 It depends only on `babbly.core` and the Python standard library, so it runs
 without the offline voice/ASR stack.
@@ -21,56 +22,46 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional, Tuple
 
-from babbly.core.operator_intent import OperatorIntent, SourceModality
 from babbly.core.operator_runtime import OperatorIntentRuntime
-from babbly.core.situation import SituationSnapshot
-from babbly.core.surface import build_situation_view
-
-
-# Surfaces may request reads and presentation changes only. Operation execution
-# and any external write remain outside this prototype (see #18).
-ALLOWED_WEB_INTENTS = {
-    "situation.report",
-    "recommendation.explain",
-    "attention.status",
-    "attention.set",
-}
+from babbly.core.session import PROTOCOL_VERSION, CoreSessionEndpoint
 
 
 class SituationWebApp:
     """Framework-neutral request handling for the Situation surface.
 
     The dispatch logic is a pure function of (method, path, body) so it can be
-    tested without opening a socket. ``make_server`` wires it to the standard
-    library HTTP server.
+    tested without opening a socket. All operator actions go through a
+    ``CoreSessionEndpoint``; the web server holds one server-side session on the
+    browser's behalf and re-establishes it if it is lost (reconnect).
     """
 
-    def __init__(self, runtime: Optional[OperatorIntentRuntime] = None) -> None:
-        self.runtime = runtime or OperatorIntentRuntime()
+    def __init__(
+        self,
+        runtime: Optional[OperatorIntentRuntime] = None,
+        endpoint: Optional[CoreSessionEndpoint] = None,
+    ) -> None:
+        self.endpoint = endpoint or CoreSessionEndpoint(runtime or OperatorIntentRuntime())
+        self.session_id: Optional[str] = None
+        self._ensure_session()
 
-    # -- view model -----------------------------------------------------------
+    # -- session --------------------------------------------------------------
 
-    def current_view(self) -> Dict[str, Any]:
-        """Collect the situation through the canonical read intent and render it."""
-        result = self.runtime.submit(
-            OperatorIntent(intent_id="situation.report", source_modality=SourceModality.WEB)
-        )
-        snapshot = SituationSnapshot.from_dict(result.payload.get("snapshot", {}))
-        return build_situation_view(
-            snapshot,
-            self.runtime.attention.state,
-            pending_confirmation=self._pending_confirmation(),
-        )
+    def _ensure_session(self) -> None:
+        welcome = self.endpoint.handle({"type": "hello", "protocol_version": PROTOCOL_VERSION})
+        if welcome.get("type") == "welcome":
+            self.session_id = welcome["session_id"]
 
-    def _pending_confirmation(self) -> Optional[Dict[str, Any]]:
-        pending = self.runtime.context.pending_intent
-        if pending is None:
-            return None
-        return {
-            "operation": pending.parameters.get("operation"),
-            "confirmation_id": self.runtime.context.pending_confirmation_id,
-            "target_ref": pending.target_ref,
-        }
+    def current_envelope(self) -> Dict[str, Any]:
+        """Fetch the situation envelope through the session contract.
+
+        Re-establishes the session on a stale/unknown session id (reconnect),
+        so a restarted endpoint does not blank the surface.
+        """
+        response = self.endpoint.handle({"type": "get_situation", "session_id": self.session_id})
+        if response.get("type") == "error" and response.get("code") == "unknown_session":
+            self._ensure_session()
+            response = self.endpoint.handle({"type": "get_situation", "session_id": self.session_id})
+        return response.get("situation", {})
 
     # -- dispatch -------------------------------------------------------------
 
@@ -81,7 +72,7 @@ class SituationWebApp:
             return 200, "text/html; charset=utf-8", INDEX_HTML.encode("utf-8")
 
         if method == "GET" and route == "/api/situation":
-            return self._json(200, self.current_view())
+            return self._json(200, self.current_envelope())
 
         if method == "POST" and route == "/api/intent":
             return self._handle_intent(body)
@@ -96,26 +87,34 @@ class SituationWebApp:
         except (ValueError, UnicodeDecodeError) as exc:
             return self._json(400, {"error": "invalid_json", "detail": str(exc)})
 
-        intent_id = payload.get("intent_id")
-        if intent_id not in ALLOWED_WEB_INTENTS:
-            # Fail closed: the web surface cannot invoke anything outside the
-            # read/presentation allowlist.
-            return self._json(
-                400,
-                {"error": "intent_not_allowed", "intent_id": intent_id, "allowed": sorted(ALLOWED_WEB_INTENTS)},
-            )
+        message = {
+            "type": "submit_intent",
+            "session_id": self.session_id,
+            "intent_id": payload.get("intent_id"),
+            "parameters": payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
+            "target_ref": payload.get("target_ref"),
+            "context_ref": payload.get("context_ref"),
+            "client_msg_id": payload.get("client_msg_id"),
+        }
+        response = self.endpoint.handle(message)
+        if response.get("type") == "error" and response.get("code") == "unknown_session":
+            self._ensure_session()
+            message["session_id"] = self.session_id
+            response = self.endpoint.handle(message)
 
-        parameters = payload.get("parameters")
-        intent = OperatorIntent(
-            intent_id=intent_id,
-            source_modality=SourceModality.WEB,
-            parameters=parameters if isinstance(parameters, dict) else {},
-            target_ref=payload.get("target_ref"),
-            context_ref=payload.get("context_ref"),
+        if response.get("type") == "error":
+            code = response.get("code")
+            status = 400 if code == "intent_not_allowed" else 502 if code == "message_too_large" else 400
+            return self._json(status, {"error": code, "detail": response.get("detail")})
+
+        return self._json(
+            200,
+            {
+                "result": response.get("result"),
+                "situation": response.get("situation", {}),
+                "deduplicated": response.get("deduplicated", False),
+            },
         )
-        result = self.runtime.submit(intent)
-        status = 200 if result.status in {"ok", "confirmation_required"} else 400
-        return self._json(status, {"result": result.to_dict(), "view": self.current_view()})
 
     @staticmethod
     def _json(status: int, data: Dict[str, Any]) -> Tuple[int, str, bytes]:
@@ -218,8 +217,14 @@ INDEX_HTML = """<!doctype html>
   </div>
 <script>
 const $ = (id) => document.getElementById(id);
-function render(v) {
-  $("conn").textContent = "";
+const STALE_AFTER_MS = 6000;
+let lastOkAt = 0;
+let lastRevision = null;
+
+function render(env) {
+  if (!env || !env.view) return;
+  const v = env.view;
+  lastRevision = env.revision;
   $("mode").textContent = "モード: " + v.attention_state.toUpperCase();
   $("status").textContent = v.status_label;
   const s = v.systems_summary;
@@ -249,21 +254,28 @@ function render(v) {
   for (const b of document.querySelectorAll("button[data-mode]"))
     b.classList.toggle("active", b.dataset.mode === v.attention_state);
 }
+function markFresh() { lastOkAt = Date.now(); $("conn").textContent = ""; }
+function markStale() {
+  const age = lastOkAt ? Math.round((Date.now() - lastOkAt) / 1000) : null;
+  $("conn").innerHTML = '<span class="err">stale' + (age !== null ? " " + age + "s" : "") + '</span>';
+}
+function checkStale() { if (lastOkAt && Date.now() - lastOkAt > STALE_AFTER_MS) markStale(); }
 async function refresh() {
-  try { const r = await fetch("/api/situation"); render(await r.json()); }
-  catch (e) { $("conn").innerHTML = '<span class="err">接続エラー</span>'; }
+  try { const r = await fetch("/api/situation"); render(await r.json()); markFresh(); }
+  catch (e) { markStale(); }
 }
 async function setMode(mode) {
   try {
     const r = await fetch("/api/intent", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ intent_id: "attention.set", parameters: { state: mode } }) });
-    const data = await r.json(); if (data.view) render(data.view);
-  } catch (e) { $("conn").innerHTML = '<span class="err">接続エラー</span>'; }
+      body: JSON.stringify({ intent_id: "attention.set", parameters: { state: mode },
+                             client_msg_id: "mode-" + mode + "-" + Date.now() }) });
+    const data = await r.json(); if (data.situation) { render(data.situation); markFresh(); }
+  } catch (e) { markStale(); }
 }
 for (const b of document.querySelectorAll("button[data-mode]"))
   b.addEventListener("click", () => setMode(b.dataset.mode));
-refresh(); setInterval(refresh, 3000);
+refresh(); setInterval(refresh, 3000); setInterval(checkStale, 2000);
 </script>
 </body>
 </html>
