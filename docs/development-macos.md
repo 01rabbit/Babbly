@@ -48,9 +48,23 @@ python -m pip install "pytest>=8,<10"
 ```
 
 The offline ASR model is a separate, uncommitted asset. `vosk` expects a model
-directory at `MODEL_PATH` (default `babbly/ja/model`); provision it before
-running the full voice loop. Tests, `--list-profiles`, and profile/DRY_RUN
-startup do not require the model.
+directory at `MODEL_PATH` (default `babbly/ja/model`). Provision it before
+running the full voice loop:
+
+```bash
+./tools/provision_vosk_model.sh
+# or the larger, more accurate model for production/Pi:
+VOSK_MODEL=vosk-model-ja-0.22 ./tools/provision_vosk_model.sh
+```
+
+The script downloads and unpacks the model into `babbly/ja/model/` (gitignored)
+and is idempotent. Tests, `--list-profiles`, and profile/DRY_RUN startup do not
+require the model.
+
+The offline Japanese TTS (`pyopenjtalk`) downloads its dictionary
+(`open_jtalk_dic`, ~22 MB) automatically on first speech and caches it in the
+package. For a fully disconnected host, trigger one online run first so the
+dictionary is cached before going offline.
 
 Run tests:
 
